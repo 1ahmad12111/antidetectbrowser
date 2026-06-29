@@ -97,6 +97,9 @@ function buildFlags(profile, preset, fpConfigPath, dataDir, debugPort) {
     `--fp-config=${fpConfigPath}`,
     `--remote-debugging-port=${debugPort}`,
 
+    // Required on Windows — Chrome sandboxing needs admin or this flag
+    ...(IS_WINDOWS ? ['--no-sandbox', '--disable-setuid-sandbox'] : []),
+
     ...(profile.proxy
       ? [`--proxy-server=${profile.proxy}`, '--force-webrtc-ip-handling-policy=disable_non_proxied_udp']
       : ['--force-webrtc-ip-handling-policy=disable_non_proxied_udp']
@@ -111,7 +114,7 @@ function buildFlags(profile, preset, fpConfigPath, dataDir, debugPort) {
     '--disable-background-networking',
     '--disable-sync',
 
-    // Open startup URLs as tabs (each URL = one tab)
+    // Open startup URLs as tabs
     ...urls,
   ];
 }
@@ -143,14 +146,25 @@ async function launch(profile, overrideCookiesFile = null) {
   touchLastUsed(profile.name);
 
   const child = spawn(binary, flags, {
-    detached: false,
-    stdio: 'ignore',
+    detached: true,
+    stdio: ['ignore', 'ignore', 'pipe'], // capture stderr for error reporting
     env: { ...process.env, BROWSER_FP_CONFIG: fpConfigPath },
+  });
+
+  // Print any early crash messages from Chrome
+  let stderrBuf = '';
+  child.stderr.on('data', d => {
+    stderrBuf += d.toString();
   });
 
   child.on('exit', (code) => {
     try { fs.unlinkSync(fpConfigPath); } catch (_) {}
-    console.log(`Profile "${profile.name}" closed (exit ${code ?? 0}).`);
+    if (code !== 0 && code !== null) {
+      console.error(`\n[error] Browser exited with code ${code}`);
+      if (stderrBuf) console.error(stderrBuf.slice(0, 1000));
+    } else {
+      console.log(`Profile "${profile.name}" closed.`);
+    }
   });
 
   child.on('error', (err) => {
