@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Antidetect Browser</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f0f; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column; }
+
+  header { background: #1a1a1a; border-bottom: 1px solid #2a2a2a; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; }
+  header h1 { font-size: 15px; font-weight: 600; color: #fff; letter-spacing: 0.3px; }
+  header span { font-size: 12px; color: #666; }
+
+  .toolbar { padding: 12px 20px; display: flex; gap: 10px; background: #141414; border-bottom: 1px solid #222; }
+  button { cursor: pointer; border: none; border-radius: 6px; font-size: 13px; font-weight: 500; padding: 7px 14px; transition: background 0.15s; }
+  .btn-primary { background: #2563eb; color: #fff; }
+  .btn-primary:hover { background: #1d4ed8; }
+  .btn-danger  { background: #7f1d1d; color: #fca5a5; }
+  .btn-danger:hover { background: #991b1b; }
+  .btn-ghost   { background: #222; color: #bbb; }
+  .btn-ghost:hover { background: #2a2a2a; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .search { flex: 1; background: #1e1e1e; border: 1px solid #2a2a2a; border-radius: 6px; padding: 7px 12px; color: #e0e0e0; font-size: 13px; outline: none; }
+  .search:focus { border-color: #2563eb; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th { background: #161616; color: #888; font-weight: 500; text-align: left; padding: 10px 16px; border-bottom: 1px solid #222; position: sticky; top: 0; }
+  tbody tr { border-bottom: 1px solid #1a1a1a; cursor: pointer; transition: background 0.1s; }
+  tbody tr:hover { background: #1a1a1a; }
+  tbody tr.selected { background: #1e2a3a; }
+  td { padding: 10px 16px; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; }
+  .badge-proxy { background: #14532d; color: #86efac; }
+  .badge-none  { background: #1c1c1c; color: #666; }
+  .badge-geo   { background: #1e3a5f; color: #93c5fd; }
+
+  .scroll { flex: 1; overflow-y: auto; }
+
+  /* Modal */
+  .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center; }
+  .overlay.open { display: flex; }
+  .modal { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px; padding: 24px; width: 520px; max-height: 90vh; overflow-y: auto; }
+  .modal h2 { font-size: 16px; margin-bottom: 18px; color: #fff; }
+  .field { margin-bottom: 14px; }
+  label { display: block; font-size: 12px; color: #888; margin-bottom: 5px; }
+  input, select, textarea { width: 100%; background: #111; border: 1px solid #2a2a2a; border-radius: 6px; padding: 8px 10px; color: #e0e0e0; font-size: 13px; outline: none; }
+  input:focus, select:focus, textarea:focus { border-color: #2563eb; }
+  select option { background: #1a1a1a; }
+  .geo-banner { background: #0f2a1a; border: 1px solid #14532d; border-radius: 6px; padding: 10px 12px; font-size: 12px; color: #86efac; margin-bottom: 14px; display: none; }
+  .geo-banner.show { display: block; }
+  .modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+
+  /* Detail panel */
+  .detail { background: #141414; border-left: 1px solid #222; width: 280px; padding: 20px; overflow-y: auto; display: none; }
+  .detail.open { display: block; }
+  .detail h3 { font-size: 14px; color: #fff; margin-bottom: 14px; }
+  .detail-row { margin-bottom: 10px; }
+  .detail-row .key { font-size: 11px; color: #666; margin-bottom: 2px; }
+  .detail-row .val { font-size: 12px; color: #ccc; word-break: break-all; }
+  .main-area { display: flex; flex: 1; overflow: hidden; }
+
+  .status { padding: 6px 20px; font-size: 11px; color: #666; background: #0f0f0f; border-top: 1px solid #1a1a1a; }
+  .status.ok  { color: #4ade80; }
+  .status.err { color: #f87171; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Antidetect Browser</h1>
+  <span id="profile-count">0 profiles</span>
+</header>
+
+<div class="toolbar">
+  <button class="btn-primary" onclick="openCreateModal()">+ New Profile</button>
+  <button class="btn-ghost" id="btn-launch" onclick="launchSelected()" disabled>▶ Launch</button>
+  <button class="btn-danger" id="btn-delete" onclick="deleteSelected()" disabled>Delete</button>
+  <input class="search" type="text" placeholder="Search profiles..." oninput="filterTable(this.value)"/>
+</div>
+
+<div class="main-area">
+  <div class="scroll" style="flex:1">
+    <table id="profile-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Preset</th>
+          <th>Proxy</th>
+          <th>Location</th>
+          <th>Startup URLs</th>
+          <th>Last Used</th>
+        </tr>
+      </thead>
+      <tbody id="profile-tbody"></tbody>
+    </table>
+  </div>
+  <div class="detail" id="detail-panel">
+    <h3 id="detail-name"></h3>
+    <div id="detail-content"></div>
+    <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px">
+      <button class="btn-primary" onclick="launchSelected()">▶ Launch Profile</button>
+      <button class="btn-ghost" style="font-size:12px" onclick="promptSetProxy()">Change Proxy</button>
+      <button class="btn-ghost" style="font-size:12px" onclick="promptSetUrls()">Set Startup URLs</button>
+      <button class="btn-ghost" style="font-size:12px" onclick="promptSetCookies()">Set Cookies File</button>
+      <button class="btn-danger" style="font-size:12px;margin-top:4px" onclick="deleteSelected()">Delete Profile</button>
+    </div>
+  </div>
+</div>
+
+<div class="status" id="status-bar">Ready</div>
+
+<!-- Create Profile Modal -->
+<div class="overlay" id="create-modal">
+  <div class="modal">
+    <h2>New Profile</h2>
+    <div class="field">
+      <label>Profile Name *</label>
+      <input type="text" id="f-name" placeholder="e.g. Allen Wallace"/>
+    </div>
+    <div class="field">
+      <label>Device Preset</label>
+      <select id="f-preset"></select>
+    </div>
+    <div class="field">
+      <label>Proxy (optional)</label>
+      <input type="text" id="f-proxy" placeholder="http://host:port  or  socks5://host:port" oninput="onProxyInput()"/>
+    </div>
+    <div class="geo-banner" id="geo-banner"></div>
+    <div class="field">
+      <label>Startup URLs (comma-separated)</label>
+      <input type="text" id="f-urls" placeholder="https://apple.com, https://paypal.com"/>
+    </div>
+    <div class="field">
+      <label>Cookies File (optional — path to JSON export)</label>
+      <input type="text" id="f-cookies" placeholder="C:\Users\You\cookies.json"/>
+    </div>
+    <div class="field">
+      <label>Timezone <span id="tz-note" style="color:#2563eb">(auto-detected from proxy)</span></label>
+      <input type="text" id="f-timezone" placeholder="America/New_York"/>
+    </div>
+    <div class="field">
+      <label>Language <span style="color:#2563eb">(auto-detected from proxy)</span></label>
+      <input type="text" id="f-language" placeholder="en-US"/>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn-primary" id="btn-create-submit" onclick="submitCreate()">Create Profile</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let profiles = [];
+let selectedName = null;
+let geoDetectTimer = null;
+
+async function loadProfiles() {
+  profiles = await window.api.listProfiles();
+  renderTable(profiles);
+  document.getElementById('profile-count').textContent = `${profiles.length} profile${profiles.length !== 1 ? 's' : ''}`;
+}
+
+function renderTable(data) {
+  const tbody = document.getElementById('profile-tbody');
+  tbody.innerHTML = '';
+  data.forEach(p => {
+    const tr = document.createElement('tr');
+    if (p.name === selectedName) tr.classList.add('selected');
+    const urls = (p.startupUrls || []).join(', ') || '—';
+    const lastUsed = p.last_used_at ? new Date(p.last_used_at).toLocaleString() : 'Never';
+    const proxyBadge = p.proxy
+      ? `<span class="badge badge-proxy">${p.proxy}</span>`
+      : `<span class="badge badge-none">Direct</span>`;
+    const geoBadge = p.geo
+      ? `<span class="badge badge-geo">📍 ${p.geo.city}, ${p.geo.countryCode}</span>`
+      : '—';
+    tr.innerHTML = `
+      <td><strong>${p.name}</strong></td>
+      <td>${p.preset}</td>
+      <td>${proxyBadge}</td>
+      <td>${geoBadge}</td>
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${urls}">${urls}</td>
+      <td>${lastUsed}</td>
+    `;
+    tr.onclick = () => selectProfile(p.name);
+    tbody.appendChild(tr);
+  });
+}
+
+function filterTable(q) {
+  const filtered = profiles.filter(p =>
+    p.name.toLowerCase().includes(q.toLowerCase()) ||
+    (p.preset || '').toLowerCase().includes(q.toLowerCase()) ||
+    (p.proxy || '').toLowerCase().includes(q.toLowerCase())
+  );
+  renderTable(filtered);
+}
+
+function selectProfile(name) {
+  selectedName = name;
+  document.getElementById('btn-launch').disabled = false;
+  document.getElementById('btn-delete').disabled = false;
+  renderTable(profiles.filter(p => {
+    const q = document.querySelector('.search').value;
+    return !q || p.name.toLowerCase().includes(q.toLowerCase());
+  }));
+  showDetail(name);
+}
+
+function showDetail(name) {
+  const p = profiles.find(x => x.name === name);
+  if (!p) return;
+  const panel = document.getElementById('detail-panel');
+  panel.classList.add('open');
+  document.getElementById('detail-name').textContent = p.name;
+  const rows = [
+    ['Preset', p.preset],
+    ['Proxy', p.proxy || 'Direct (no proxy)'],
+    ['Timezone', p.timezone],
+    ['Language', p.language],
+    ['Location', p.geo ? `${p.geo.city}, ${p.geo.country}\n${p.geo.lat}, ${p.geo.lon}` : 'Not set'],
+    ['Startup URLs', (p.startupUrls || []).join('\n') || 'None'],
+    ['Cookies File', p.cookiesFile || 'None'],
+    ['Created', new Date(p.created_at).toLocaleString()],
+    ['Last Used', p.last_used_at ? new Date(p.last_used_at).toLocaleString() : 'Never'],
+    ['Fingerprint Seed', p.seed],
+  ];
+  document.getElementById('detail-content').innerHTML = rows.map(([k,v]) =>
+    `<div class="detail-row"><div class="key">${k}</div><div class="val">${v}</div></div>`
+  ).join('');
+}
+
+async function launchSelected() {
+  if (!selectedName) return;
+  setStatus(`Launching "${selectedName}"...`, '');
+  try {
+    await window.api.launchProfile(selectedName, null);
+    setStatus(`"${selectedName}" launched`, 'ok');
+    await loadProfiles();
+  } catch (e) {
+    setStatus(`Launch failed: ${e.message}`, 'err');
+  }
+}
+
+async function deleteSelected() {
+  if (!selectedName) return;
+  if (!confirm(`Delete profile "${selectedName}" and ALL its data (cookies, history)? This cannot be undone.`)) return;
+  await window.api.deleteProfile(selectedName);
+  selectedName = null;
+  document.getElementById('btn-launch').disabled = true;
+  document.getElementById('btn-delete').disabled = true;
+  document.getElementById('detail-panel').classList.remove('open');
+  setStatus('Profile deleted', 'ok');
+  await loadProfiles();
+}
+
+// ── Create Modal ──────────────────────────────────────────────────────────────
+
+async function openCreateModal() {
+  const presets = await window.api.listPresets();
+  const sel = document.getElementById('f-preset');
+  sel.innerHTML = presets.map(p => `<option value="${p}">${p}</option>`).join('');
+  document.getElementById('f-name').value = '';
+  document.getElementById('f-proxy').value = '';
+  document.getElementById('f-urls').value = '';
+  document.getElementById('f-cookies').value = '';
+  document.getElementById('f-timezone').value = '';
+  document.getElementById('f-language').value = '';
+  document.getElementById('geo-banner').classList.remove('show');
+  document.getElementById('create-modal').classList.add('open');
+  setTimeout(() => document.getElementById('f-name').focus(), 50);
+}
+
+function closeModal() {
+  document.getElementById('create-modal').classList.remove('open');
+}
+
+function onProxyInput() {
+  clearTimeout(geoDetectTimer);
+  const proxy = document.getElementById('f-proxy').value.trim();
+  if (!proxy) {
+    document.getElementById('geo-banner').classList.remove('show');
+    return;
+  }
+  document.getElementById('geo-banner').textContent = 'Detecting proxy location...';
+  document.getElementById('geo-banner').classList.add('show');
+  geoDetectTimer = setTimeout(async () => {
+    try {
+      const geo = await window.api.detectGeo(proxy);
+      document.getElementById('f-timezone').value = geo.timezone;
+      document.getElementById('f-language').value = geo.language;
+      document.getElementById('geo-banner').textContent =
+        `✓ Proxy exit IP: ${geo.ip} → ${geo.city}, ${geo.country} · TZ: ${geo.timezone} · Lang: ${geo.language} · GPS: ${geo.lat}, ${geo.lon}`;
+    } catch (e) {
+      document.getElementById('geo-banner').textContent = `⚠ Could not detect: ${e.message}. Set timezone/language manually.`;
+    }
+  }, 800);
+}
+
+async function submitCreate() {
+  const name = document.getElementById('f-name').value.trim();
+  if (!name) { alert('Profile name is required'); return; }
+
+  const urlsRaw = document.getElementById('f-urls').value.trim();
+  const startupUrls = urlsRaw ? urlsRaw.split(',').map(u => u.trim()).filter(Boolean) : [];
+
+  const btn = document.getElementById('btn-create-submit');
+  btn.disabled = true;
+  btn.textContent = 'Creating...';
+
+  try {
+    await window.api.createProfile({
+      name,
+      preset: document.getElementById('f-preset').value,
+      proxy: document.getElementById('f-proxy').value.trim() || null,
+      timezone: document.getElementById('f-timezone').value.trim() || 'America/New_York',
+      language: document.getElementById('f-language').value.trim() || 'en-US',
+      startupUrls,
+      cookiesFile: document.getElementById('f-cookies').value.trim() || null,
+    });
+    closeModal();
+    setStatus(`Profile "${name}" created`, 'ok');
+    await loadProfiles();
+  } catch (e) {
+    setStatus(`Error: ${e.message}`, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Create Profile';
+  }
+}
+
+// ── Quick edits from detail panel ─────────────────────────────────────────────
+
+async function promptSetProxy() {
+  if (!selectedName) return;
+  const p = profiles.find(x => x.name === selectedName);
+  const val = prompt('New proxy URL (or "none" to remove):', p?.proxy || '');
+  if (val === null) return;
+  await window.api.setProxy(selectedName, val || 'none');
+  setStatus('Proxy updated', 'ok');
+  await loadProfiles();
+  showDetail(selectedName);
+}
+
+async function promptSetUrls() {
+  if (!selectedName) return;
+  const p = profiles.find(x => x.name === selectedName);
+  const val = prompt('Startup URLs (comma-separated):', (p?.startupUrls || []).join(', '));
+  if (val === null) return;
+  const urls = val.split(',').map(u => u.trim()).filter(Boolean);
+  await window.api.setUrls(selectedName, urls);
+  setStatus('Startup URLs updated', 'ok');
+  await loadProfiles();
+  showDetail(selectedName);
+}
+
+async function promptSetCookies() {
+  if (!selectedName) return;
+  const p = profiles.find(x => x.name === selectedName);
+  const val = prompt('Path to cookies JSON file (or leave blank to remove):', p?.cookiesFile || '');
+  if (val === null) return;
+  await window.api.setCookies(selectedName, val || null);
+  setStatus('Cookies file updated', 'ok');
+  await loadProfiles();
+  showDetail(selectedName);
+}
+
+function setStatus(msg, type) {
+  const bar = document.getElementById('status-bar');
+  bar.textContent = msg;
+  bar.className = 'status ' + (type || '');
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+loadProfiles();
+</script>
+</body>
+</html>
