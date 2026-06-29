@@ -1,5 +1,79 @@
 # Antidetect Browser — Market Research & Build Game Plan
 
+---
+
+## MINIMAL PERSONAL-USE PLAN (Revised — Read This First)
+
+> This is for personal use by a small group of friends. No UI, no cloud, no enterprise features.
+> Goal: fastest path to a working patched browser on a VM.
+
+### What We're Building (Minimal Version)
+
+```
+patched-chrome  ←  node launch.js <profile-name>
+                        ↓
+               reads profiles/<name>.json
+               spawns chrome with isolated user-data-dir + proxy + fingerprint seed
+```
+
+### 4-Week Timeline (Down From 15)
+
+| Week | Task | Output |
+|---|---|---|
+| 1 | Set up Chromium build env on VM; clone CloakBrowser | Build env ready |
+| 2 | Apply CloakBrowser's 58 C++ patches; `autoninja -C out/Release chrome` | Working patched binary |
+| 3 | Write `launch.js` (~100 lines Node.js) — create/list/launch profiles with proxy | CLI working |
+| 4 | Test against BrowserLeaks + Pixelscan; fix leaks; install on VM | Done |
+
+**Shortcut**: If 30-hour build is a blocker, download CloakBrowser's pre-built binary release and skip directly to Week 3.
+
+### Minimal Stack
+
+| What | Choice |
+|---|---|
+| Browser engine | CloakBrowser patches on Chromium 148 (58 patches, pre-written) |
+| Profile launcher | Single `launch.js` Node.js script (~100 lines) |
+| Profile storage | JSON files in `profiles/` folder |
+| Proxy | `--proxy-server=socks5://host:port` flag (built into Chromium) |
+| UI | Terminal commands only |
+
+### 3 Daily Commands
+
+```bash
+node launch.js create "account-1" --preset=windows-11-rtx3070 --proxy=socks5://127.0.0.1:1080
+node launch.js list
+node launch.js launch "account-1"
+```
+
+### 5 Starter Device Presets
+
+| Preset | OS | GPU | Screen |
+|---|---|---|---|
+| `windows-11-rtx3070-1080p` | Windows 11 | NVIDIA RTX 3070 | 1920×1080 |
+| `windows-10-gtx1060-1080p` | Windows 10 | NVIDIA GTX 1060 | 1920×1080 |
+| `macos-14-m2-retina` | macOS 14 | Apple M2 | 2560×1600 |
+| `windows-11-intel-1080p` | Windows 11 | Intel UHD 730 | 1920×1080 |
+| `ubuntu-22-amd-1080p` | Ubuntu 22 | AMD RX 580 | 1920×1080 |
+
+### VM Install (Week 4, Day 1)
+
+```bash
+sudo apt install -y libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
+  libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 libgbm1 libasound2
+cd ~/browser && node launch.js launch "account-1"
+```
+
+### What We're Skipping (Not Needed for Personal Use)
+
+- Electron/React UI (terminal is fine)
+- SQLite (JSON files handle <50 profiles)
+- TLS/JA4+ proxy layer (advanced; overkill)
+- Firefox fork (Chromium-only is fine)
+- .deb packaging (just copy the folder)
+- Cloud sync (local only)
+
+---
+
 ## 1. What is an Antidetect Browser?
 
 An antidetect browser is a modified browser that replaces your real device fingerprint with a
