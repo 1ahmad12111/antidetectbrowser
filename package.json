@@ -13,7 +13,9 @@
     "delete": "node src/launch.js delete",
     "set-proxy": "node src/launch.js set-proxy"
   },
-  "dependencies": {},
+  "dependencies": {
+    "cloakbrowser": "latest"
+  },
   "engines": {
     "node": ">=18.0.0"
   }

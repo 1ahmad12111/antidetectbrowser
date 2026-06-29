@@ -63,11 +63,11 @@ function cmdCreate(args) {
   console.log(`  Proxy : ${profile.proxy || 'none'}`);
 }
 
-function cmdLaunch(args) {
+async function cmdLaunch(args) {
   const name = args[0];
   if (!name) { console.error('Usage: launch <name>'); process.exit(1); }
   const profile = load(name);
-  launch(profile);
+  await launch(profile);
 }
 
 function cmdList() {
@@ -107,12 +107,14 @@ function cmdPresets() {
   console.log('');
 }
 
-switch (command) {
-  case 'create':   cmdCreate(args); break;
-  case 'launch':   cmdLaunch(args); break;
-  case 'list':     cmdList(); break;
-  case 'set-proxy': cmdSetProxy(args); break;
-  case 'delete':   cmdDelete(args); break;
-  case 'presets':  cmdPresets(); break;
-  default:         printUsage(); break;
-}
+(async () => {
+  switch (command) {
+    case 'create':    cmdCreate(args); break;
+    case 'launch':    await cmdLaunch(args); break;
+    case 'list':      cmdList(); break;
+    case 'set-proxy': cmdSetProxy(args); break;
+    case 'delete':    cmdDelete(args); break;
+    case 'presets':   cmdPresets(); break;
+    default:          printUsage(); break;
+  }
+})();

@@ -8,56 +8,61 @@ const { getPreset } = require('./presets');
 const { userDataDir, touchLastUsed } = require('./profiles');
 
 const ROOT = path.resolve(__dirname, '..');
-
 const IS_WINDOWS = process.platform === 'win32';
 
-// Resolve the patched Chromium binary. Checks (in order):
-//   1. CHROME_BIN env var
-//   2. ./bin/chrome.exe (Windows) or ./bin/chrome (Linux)
-//   3. System Chrome/Chromium as fallback (unpatched — for testing only)
-function resolveBinary() {
+// Returns the path to the CloakBrowser patched binary.
+// Downloads it automatically on first run (~200MB, cached in ~/.cloakbrowser/).
+async function resolveBinary() {
   if (process.env.CHROME_BIN) return process.env.CHROME_BIN;
 
+  // cloakbrowser is an ESM package — use dynamic import from our CommonJS code
+  try {
+    const { binaryInfo, ensureBinary } = await import('cloakbrowser');
+    const info = binaryInfo();
+
+    if (!info.installed) {
+      console.log(`Downloading patched Chromium ${info.version} (~200MB, one-time)...`);
+      await ensureBinary();
+      console.log('Download complete.\n');
+    }
+
+    return info.binaryPath;
+  } catch (err) {
+    console.warn(`[warn] cloakbrowser package error: ${err.message}`);
+  }
+
+  // Manual drop-in fallback: place binary at bin/chrome.exe (Windows) or bin/chrome (Linux)
   const localBin = path.join(ROOT, 'bin', IS_WINDOWS ? 'chrome.exe' : 'chrome');
   if (fs.existsSync(localBin)) return localBin;
 
+  // System Chrome fallback — no fingerprint patches, but proxy + isolation still work
   if (IS_WINDOWS) {
-    const windowsCandidates = [
+    const candidates = [
       path.join(process.env['PROGRAMFILES'] || 'C:\\Program Files', 'Google\\Chrome\\Application\\chrome.exe'),
       path.join(process.env['PROGRAMFILES(X86)'] || 'C:\\Program Files (x86)', 'Google\\Chrome\\Application\\chrome.exe'),
       path.join(process.env['LOCALAPPDATA'] || '', 'Google\\Chrome\\Application\\chrome.exe'),
     ];
-    for (const candidate of windowsCandidates) {
-      if (fs.existsSync(candidate)) {
-        console.warn(`[warn] Using system Chrome — fingerprint patches NOT active. Drop your patched binary at bin\\chrome.exe`);
-        return candidate;
+    for (const c of candidates) {
+      if (fs.existsSync(c)) {
+        console.warn('[warn] Using system Chrome — fingerprint patches NOT active.');
+        return c;
       }
     }
-    throw new Error(
-      'No Chrome binary found.\n' +
-      '  Option 1: Set CHROME_BIN=C:\\path\\to\\chrome.exe in a .env file or before running\n' +
-      '  Option 2: Copy your patched chrome.exe to bin\\chrome.exe\n' +
-      '  Option 3: Install Google Chrome for testing (no stealth patches)'
-    );
+  } else {
+    for (const c of ['chromium-browser', 'chromium', 'google-chrome']) {
+      try {
+        require('child_process').execSync(`which ${c}`, { stdio: 'ignore' });
+        console.warn(`[warn] Using system ${c} — fingerprint patches NOT active.`);
+        return c;
+      } catch (_) {}
+    }
   }
 
-  for (const candidate of ['chromium-browser', 'chromium', 'google-chrome', 'google-chrome-stable']) {
-    try {
-      require('child_process').execSync(`which ${candidate}`, { stdio: 'ignore' });
-      console.warn(`[warn] Using system ${candidate} — fingerprint patches NOT active.`);
-      return candidate;
-    } catch (_) {}
-  }
-
-  throw new Error(
-    'No Chrome binary found.\n' +
-    '  Option 1: Set CHROME_BIN=/path/to/chrome\n' +
-    '  Option 2: Copy your patched binary to bin/chrome'
-  );
+  throw new Error('No browser binary found. Run: npm install  (cloakbrowser will auto-download the patched binary)');
 }
 
-// Write the fingerprint config that the patched binary reads on startup.
-// The seed drives all noise functions — same seed = identical fingerprint every launch.
+// Writes a temp JSON config the patched binary reads at startup.
+// Same seed = identical fingerprint on every launch.
 function writeFpConfig(profile, preset) {
   const config = {
     seed: profile.seed,
@@ -82,71 +87,48 @@ function writeFpConfig(profile, preset) {
 }
 
 function buildFlags(profile, preset, fpConfigPath, dataDir) {
-  const flags = [
+  return [
     `--user-data-dir=${dataDir}`,
-
-    // Fingerprint config path — read by our C++ patches at startup
     `--fp-config=${fpConfigPath}`,
 
-    // Proxy
-    ...(profile.proxy ? [
-      `--proxy-server=${profile.proxy}`,
-      // Force all WebRTC traffic through the proxy — prevents real IP leak
-      '--force-webrtc-ip-handling-policy=disable_non_proxied_udp',
-    ] : [
-      '--force-webrtc-ip-handling-policy=disable_non_proxied_udp',
-    ]),
+    ...(profile.proxy
+      ? [`--proxy-server=${profile.proxy}`, '--force-webrtc-ip-handling-policy=disable_non_proxied_udp']
+      : ['--force-webrtc-ip-handling-policy=disable_non_proxied_udp']
+    ),
 
-    // Automation signal removal
     '--disable-blink-features=AutomationControlled',
     '--exclude-switches=enable-automation',
-
-    // UA override at flag level (belt + suspenders alongside C++ patch)
     `--user-agent=${preset.userAgent}`,
-
-    // Timezone
-    `--timezone=${profile.timezone}`,
-
-    // Clean launch — no "Chrome didn't shut down cleanly" banner
     '--no-first-run',
     '--no-default-browser-check',
     '--disable-default-apps',
-
-    // Performance
     '--disable-background-networking',
     '--disable-sync',
   ];
-
-  return flags;
 }
 
-function launch(profile) {
+async function launch(profile) {
   const preset = getPreset(profile.preset);
   const dataDir = userDataDir(profile.name);
   const fpConfigPath = writeFpConfig(profile, preset);
-  const binary = resolveBinary();
+  const binary = await resolveBinary();
   const flags = buildFlags(profile, preset, fpConfigPath, dataDir);
 
-  console.log(`Launching profile: ${profile.name}`);
+  console.log(`\nLaunching profile: ${profile.name}`);
   console.log(`  Preset  : ${profile.preset}`);
   console.log(`  Proxy   : ${profile.proxy || 'none (direct)'}`);
   console.log(`  Timezone: ${profile.timezone}`);
-  console.log(`  Seed    : ${profile.seed}`);
-  console.log(`  Binary  : ${binary}`);
+  console.log(`  Binary  : ${binary}\n`);
 
   touchLastUsed(profile.name);
 
   const child = spawn(binary, flags, {
     detached: false,
     stdio: 'ignore',
-    env: {
-      ...process.env,
-      BROWSER_FP_CONFIG: fpConfigPath,
-    },
+    env: { ...process.env, BROWSER_FP_CONFIG: fpConfigPath },
   });
 
   child.on('exit', (code) => {
-    // Clean up temp fingerprint config file on browser close
     try { fs.unlinkSync(fpConfigPath); } catch (_) {}
     console.log(`Profile "${profile.name}" closed (exit ${code ?? 0}).`);
   });
@@ -156,7 +138,6 @@ function launch(profile) {
     process.exit(1);
   });
 
-  // Keep the launcher process alive while the browser is open
   child.unref();
 }
 
