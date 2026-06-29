@@ -2,87 +2,117 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Antidetect Browser</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f0f; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column; }
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f0f0f;color:#e0e0e0;height:100vh;display:flex;flex-direction:column;overflow:hidden}
 
-  header { background: #1a1a1a; border-bottom: 1px solid #2a2a2a; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; }
-  header h1 { font-size: 15px; font-weight: 600; color: #fff; letter-spacing: 0.3px; }
-  header span { font-size: 12px; color: #666; }
+/* Header */
+header{background:#161616;border-bottom:1px solid #222;padding:12px 18px;display:flex;align-items:center;gap:12px}
+header h1{font-size:14px;font-weight:700;color:#fff;letter-spacing:.3px;flex:1}
+.header-counts{font-size:11px;color:#555;display:flex;gap:12px}
+.header-counts span{display:flex;align-items:center;gap:4px}
+.dot-running{width:7px;height:7px;border-radius:50%;background:#22c55e;display:inline-block}
 
-  .toolbar { padding: 12px 20px; display: flex; gap: 10px; background: #141414; border-bottom: 1px solid #222; }
-  button { cursor: pointer; border: none; border-radius: 6px; font-size: 13px; font-weight: 500; padding: 7px 14px; transition: background 0.15s; }
-  .btn-primary { background: #2563eb; color: #fff; }
-  .btn-primary:hover { background: #1d4ed8; }
-  .btn-danger  { background: #7f1d1d; color: #fca5a5; }
-  .btn-danger:hover { background: #991b1b; }
-  .btn-ghost   { background: #222; color: #bbb; }
-  .btn-ghost:hover { background: #2a2a2a; }
-  button:disabled { opacity: 0.4; cursor: not-allowed; }
+/* Toolbar */
+.toolbar{padding:10px 18px;display:flex;gap:8px;align-items:center;background:#141414;border-bottom:1px solid #1e1e1e;flex-wrap:wrap}
+.search{flex:1;min-width:160px;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:6px;padding:6px 10px;color:#e0e0e0;font-size:12px;outline:none}
+.search:focus{border-color:#3b82f6}
+button{cursor:pointer;border:none;border-radius:6px;font-size:12px;font-weight:500;padding:6px 12px;transition:opacity .15s,background .15s;white-space:nowrap}
+button:hover{opacity:.85}
+button:disabled{opacity:.35;cursor:not-allowed}
+.btn-blue{background:#2563eb;color:#fff}
+.btn-green{background:#15803d;color:#d1fae5}
+.btn-red{background:#7f1d1d;color:#fca5a5}
+.btn-ghost{background:#1e1e1e;color:#aaa;border:1px solid #2a2a2a}
+.btn-yellow{background:#854d0e;color:#fef08a}
 
-  .search { flex: 1; background: #1e1e1e; border: 1px solid #2a2a2a; border-radius: 6px; padding: 7px 12px; color: #e0e0e0; font-size: 13px; outline: none; }
-  .search:focus { border-color: #2563eb; }
+/* Layout */
+.body{display:flex;flex:1;overflow:hidden}
 
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  thead th { background: #161616; color: #888; font-weight: 500; text-align: left; padding: 10px 16px; border-bottom: 1px solid #222; position: sticky; top: 0; }
-  tbody tr { border-bottom: 1px solid #1a1a1a; cursor: pointer; transition: background 0.1s; }
-  tbody tr:hover { background: #1a1a1a; }
-  tbody tr.selected { background: #1e2a3a; }
-  td { padding: 10px 16px; }
-  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; }
-  .badge-proxy { background: #14532d; color: #86efac; }
-  .badge-none  { background: #1c1c1c; color: #666; }
-  .badge-geo   { background: #1e3a5f; color: #93c5fd; }
+/* Table */
+.table-wrap{flex:1;overflow-y:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead th{background:#141414;color:#666;font-weight:500;text-align:left;padding:9px 14px;border-bottom:1px solid #222;position:sticky;top:0;z-index:1}
+tbody tr{border-bottom:1px solid #191919;cursor:pointer;transition:background .1s}
+tbody tr:hover{background:#181818}
+tbody tr.selected{background:#1a2540}
+td{padding:9px 14px;vertical-align:middle}
+.name-cell{display:flex;align-items:center;gap:8px}
+.run-dot{width:8px;height:8px;border-radius:50%;background:#22c55e;flex-shrink:0;box-shadow:0 0 6px #22c55e88}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:600}
+.b-proxy{background:#14532d;color:#86efac}
+.b-direct{background:#1c1c1c;color:#555}
+.b-geo{background:#1e3a5f;color:#93c5fd}
+.b-ok{background:#14532d;color:#86efac}
+.b-err{background:#7f1d1d;color:#fca5a5}
+.b-checking{background:#1c1c1c;color:#666}
+.notes-preview{font-size:10px;color:#555;font-style:italic;margin-top:2px}
 
-  .scroll { flex: 1; overflow-y: auto; }
+/* Detail panel */
+.detail{width:270px;background:#121212;border-left:1px solid #1e1e1e;display:flex;flex-direction:column;transition:width .2s}
+.detail.closed{width:0;overflow:hidden}
+.detail-inner{padding:16px;overflow-y:auto;flex:1}
+.detail h3{font-size:13px;color:#fff;margin-bottom:4px;word-break:break-word}
+.detail .sub{font-size:10px;color:#555;margin-bottom:14px}
+.d-row{margin-bottom:10px}
+.d-row .k{font-size:10px;color:#555;margin-bottom:2px}
+.d-row .v{font-size:11px;color:#ccc;word-break:break-all;white-space:pre-wrap}
+.detail-actions{padding:12px 16px;border-top:1px solid #1e1e1e;display:flex;flex-direction:column;gap:6px}
+.action-row{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 
-  /* Modal */
-  .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center; }
-  .overlay.open { display: flex; }
-  .modal { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px; padding: 24px; width: 520px; max-height: 90vh; overflow-y: auto; }
-  .modal h2 { font-size: 16px; margin-bottom: 18px; color: #fff; }
-  .field { margin-bottom: 14px; }
-  label { display: block; font-size: 12px; color: #888; margin-bottom: 5px; }
-  input, select, textarea { width: 100%; background: #111; border: 1px solid #2a2a2a; border-radius: 6px; padding: 8px 10px; color: #e0e0e0; font-size: 13px; outline: none; }
-  input:focus, select:focus, textarea:focus { border-color: #2563eb; }
-  select option { background: #1a1a1a; }
-  .geo-banner { background: #0f2a1a; border: 1px solid #14532d; border-radius: 6px; padding: 10px 12px; font-size: 12px; color: #86efac; margin-bottom: 14px; display: none; }
-  .geo-banner.show { display: block; }
-  .modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+/* Modal */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;align-items:center;justify-content:center}
+.overlay.open{display:flex}
+.modal{background:#181818;border:1px solid #2a2a2a;border-radius:12px;padding:22px;width:500px;max-height:88vh;overflow-y:auto}
+.modal h2{font-size:15px;color:#fff;margin-bottom:16px}
+.f{margin-bottom:12px}
+.f label{display:block;font-size:11px;color:#777;margin-bottom:4px}
+.f input,.f select,.f textarea{width:100%;background:#111;border:1px solid #252525;border-radius:6px;padding:7px 9px;color:#e0e0e0;font-size:12px;outline:none;resize:vertical}
+.f input:focus,.f select:focus,.f textarea:focus{border-color:#3b82f6}
+.f textarea{min-height:60px}
+select option{background:#181818}
+.geo-banner{background:#0c2218;border:1px solid #14532d;border-radius:6px;padding:9px 11px;font-size:11px;color:#86efac;margin-bottom:12px;display:none}
+.geo-banner.show{display:block}
+.proxy-test-row{display:flex;gap:6px;align-items:flex-end}
+.proxy-test-row .f{flex:1;margin-bottom:0}
+.modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:18px;padding-top:14px;border-top:1px solid #222}
 
-  /* Detail panel */
-  .detail { background: #141414; border-left: 1px solid #222; width: 280px; padding: 20px; overflow-y: auto; display: none; }
-  .detail.open { display: block; }
-  .detail h3 { font-size: 14px; color: #fff; margin-bottom: 14px; }
-  .detail-row { margin-bottom: 10px; }
-  .detail-row .key { font-size: 11px; color: #666; margin-bottom: 2px; }
-  .detail-row .val { font-size: 12px; color: #ccc; word-break: break-all; }
-  .main-area { display: flex; flex: 1; overflow: hidden; }
-
-  .status { padding: 6px 20px; font-size: 11px; color: #666; background: #0f0f0f; border-top: 1px solid #1a1a1a; }
-  .status.ok  { color: #4ade80; }
-  .status.err { color: #f87171; }
+/* Status bar */
+.statusbar{padding:5px 18px;font-size:11px;color:#555;background:#0d0d0d;border-top:1px solid #191919;display:flex;justify-content:space-between}
+.statusbar.ok{color:#4ade80}
+.statusbar.err{color:#f87171}
+.statusbar.info{color:#93c5fd}
 </style>
 </head>
 <body>
 
 <header>
   <h1>Antidetect Browser</h1>
-  <span id="profile-count">0 profiles</span>
+  <div class="header-counts">
+    <span id="hdr-total">0 profiles</span>
+    <span><span class="dot-running"></span><span id="hdr-running">0 running</span></span>
+  </div>
 </header>
 
 <div class="toolbar">
-  <button class="btn-primary" onclick="openCreateModal()">+ New Profile</button>
-  <button class="btn-ghost" id="btn-launch" onclick="launchSelected()" disabled>▶ Launch</button>
-  <button class="btn-danger" id="btn-delete" onclick="deleteSelected()" disabled>Delete</button>
-  <input class="search" type="text" placeholder="Search profiles..." oninput="filterTable(this.value)"/>
+  <button class="btn-blue"  onclick="openCreateModal()">+ New Profile</button>
+  <button class="btn-green" id="btn-launch"  onclick="launchSelected()" disabled>▶ Launch</button>
+  <button class="btn-ghost" id="btn-close-p" onclick="closeSelected()"  disabled style="display:none">■ Close</button>
+  <button class="btn-ghost" id="btn-dup"     onclick="duplicateSelected()" disabled>⧉ Duplicate</button>
+  <button class="btn-red"   id="btn-del"     onclick="deleteSelected()"  disabled>✕ Delete</button>
+  <div style="flex:1"></div>
+  <button class="btn-ghost" onclick="launchAll()">▶ All</button>
+  <button class="btn-ghost" onclick="closeAll()">■ Close All</button>
+  <button class="btn-yellow" onclick="runHealthCheck()">⬤ Proxy Health</button>
+  <input  class="search" type="text" placeholder="Search by name, proxy, country…" oninput="filterTable(this.value)"/>
 </div>
 
-<div class="main-area">
-  <div class="scroll" style="flex:1">
-    <table id="profile-table">
+<div class="body">
+  <!-- Profile table -->
+  <div class="table-wrap">
+    <table id="tbl">
       <thead>
         <tr>
           <th>Name</th>
@@ -93,95 +123,158 @@
           <th>Last Used</th>
         </tr>
       </thead>
-      <tbody id="profile-tbody"></tbody>
+      <tbody id="tbody"></tbody>
     </table>
   </div>
-  <div class="detail" id="detail-panel">
-    <h3 id="detail-name"></h3>
-    <div id="detail-content"></div>
-    <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px">
-      <button class="btn-primary" onclick="launchSelected()">▶ Launch Profile</button>
-      <button class="btn-ghost" style="font-size:12px" onclick="promptSetProxy()">Change Proxy</button>
-      <button class="btn-ghost" style="font-size:12px" onclick="promptSetUrls()">Set Startup URLs</button>
-      <button class="btn-ghost" style="font-size:12px" onclick="promptSetCookies()">Set Cookies File</button>
-      <button class="btn-danger" style="font-size:12px;margin-top:4px" onclick="deleteSelected()">Delete Profile</button>
+
+  <!-- Detail panel -->
+  <div class="detail closed" id="detail">
+    <div class="detail-inner" id="detail-inner">
+      <h3 id="d-name"></h3>
+      <div class="sub" id="d-sub"></div>
+      <div id="d-rows"></div>
+    </div>
+    <div class="detail-actions">
+      <button class="btn-green"  id="d-btn-launch"  onclick="launchSelected()">▶ Launch</button>
+      <button class="btn-ghost"  id="d-btn-close"   onclick="closeSelected()" style="display:none">■ Close Profile</button>
+      <button class="btn-yellow" id="d-btn-paste"   onclick="pasteClipboardCookies()" style="display:none">📋 Paste Cookies</button>
+      <div class="action-row">
+        <button class="btn-ghost" onclick="promptSetProxy()">🔌 Proxy</button>
+        <button class="btn-ghost" onclick="promptSetUrls()">🌐 URLs</button>
+      </div>
+      <div class="action-row">
+        <button class="btn-ghost" onclick="promptSetCookies()">🍪 Cookies File</button>
+        <button class="btn-ghost" onclick="promptSetNotes()">📝 Notes</button>
+      </div>
+      <button class="btn-ghost" onclick="duplicateSelected()" style="margin-top:2px">⧉ Duplicate Profile</button>
+      <button class="btn-red"   onclick="deleteSelected()"   style="margin-top:2px">✕ Delete Profile</button>
     </div>
   </div>
 </div>
 
-<div class="status" id="status-bar">Ready</div>
+<div class="statusbar" id="statusbar">
+  <span id="status-msg">Ready</span>
+  <span id="status-time"></span>
+</div>
 
-<!-- Create Profile Modal -->
-<div class="overlay" id="create-modal">
+<!-- Create Modal -->
+<div class="overlay" id="modal-create">
   <div class="modal">
     <h2>New Profile</h2>
-    <div class="field">
+    <div class="f">
       <label>Profile Name *</label>
-      <input type="text" id="f-name" placeholder="e.g. Allen Wallace"/>
+      <input id="f-name" type="text" placeholder="e.g. Allen Wallace"/>
     </div>
-    <div class="field">
+    <div class="f">
       <label>Device Preset</label>
       <select id="f-preset"></select>
     </div>
-    <div class="field">
-      <label>Proxy (optional)</label>
-      <input type="text" id="f-proxy" placeholder="http://host:port  or  socks5://host:port" oninput="onProxyInput()"/>
+    <div class="proxy-test-row">
+      <div class="f">
+        <label>Proxy (optional)</label>
+        <input id="f-proxy" type="text" placeholder="http://host:port  or  socks5://host:port" oninput="onProxyInput()"/>
+      </div>
+      <button class="btn-ghost" style="margin-bottom:12px;padding:7px 10px" onclick="testProxyInModal()">Test</button>
     </div>
     <div class="geo-banner" id="geo-banner"></div>
-    <div class="field">
+    <div class="f">
       <label>Startup URLs (comma-separated)</label>
-      <input type="text" id="f-urls" placeholder="https://apple.com, https://paypal.com"/>
+      <input id="f-urls" type="text" placeholder="https://apple.com, https://paypal.com"/>
     </div>
-    <div class="field">
-      <label>Cookies File (optional — path to JSON export)</label>
-      <input type="text" id="f-cookies" placeholder="C:\Users\You\cookies.json"/>
+    <div class="f">
+      <label>Cookies File (path to JSON export — or paste after launch)</label>
+      <input id="f-cookies" type="text" placeholder="C:\Users\You\Downloads\cookies.json"/>
     </div>
-    <div class="field">
-      <label>Timezone <span id="tz-note" style="color:#2563eb">(auto-detected from proxy)</span></label>
-      <input type="text" id="f-timezone" placeholder="America/New_York"/>
+    <div class="f">
+      <label>Notes</label>
+      <textarea id="f-notes" placeholder="Optional — e.g. Facebook acc for client X"></textarea>
     </div>
-    <div class="field">
-      <label>Language <span style="color:#2563eb">(auto-detected from proxy)</span></label>
-      <input type="text" id="f-language" placeholder="en-US"/>
+    <div class="f">
+      <label>Timezone <span style="color:#3b82f6;font-size:10px">(auto-filled from proxy)</span></label>
+      <input id="f-timezone" type="text" placeholder="America/New_York"/>
+    </div>
+    <div class="f">
+      <label>Language <span style="color:#3b82f6;font-size:10px">(auto-filled from proxy)</span></label>
+      <input id="f-language" type="text" placeholder="en-US"/>
     </div>
     <div class="modal-footer">
-      <button class="btn-ghost" onclick="closeModal()">Cancel</button>
-      <button class="btn-primary" id="btn-create-submit" onclick="submitCreate()">Create Profile</button>
+      <button class="btn-ghost" onclick="closeModal('modal-create')">Cancel</button>
+      <button class="btn-blue"  id="btn-submit-create" onclick="submitCreate()">Create Profile</button>
     </div>
   </div>
 </div>
 
 <script>
+// ── State ────────────────────────────────────────────────────────────────────
 let profiles = [];
-let selectedName = null;
-let geoDetectTimer = null;
+let running  = new Set();
+let health   = {};        // proxy → { ok, ip, country, ms }
+let selected = null;
+let geoTimer = null;
 
-async function loadProfiles() {
-  profiles = await window.api.listProfiles();
-  renderTable(profiles);
-  document.getElementById('profile-count').textContent = `${profiles.length} profile${profiles.length !== 1 ? 's' : ''}`;
+// ── Boot ─────────────────────────────────────────────────────────────────────
+async function boot() {
+  await refresh();
+  // Fix 3: poll running status every 2 seconds
+  setInterval(async () => {
+    const r = await window.api.runningProfiles();
+    running = new Set(r);
+    renderTable();
+    updateHeader();
+    updateDetailButtons();
+  }, 2000);
 }
 
+async function refresh() {
+  [profiles] = await Promise.all([window.api.listProfiles()]);
+  const r = await window.api.runningProfiles();
+  running = new Set(r);
+  renderTable();
+  updateHeader();
+}
+
+// ── Table ─────────────────────────────────────────────────────────────────────
 function renderTable(data) {
-  const tbody = document.getElementById('profile-tbody');
+  const q = document.querySelector('.search').value.toLowerCase();
+  const rows = (data || profiles).filter(p =>
+    !q ||
+    p.name.toLowerCase().includes(q) ||
+    (p.proxy||'').toLowerCase().includes(q) ||
+    (p.geo?.country||'').toLowerCase().includes(q) ||
+    (p.geo?.countryCode||'').toLowerCase().includes(q) ||
+    (p.notes||'').toLowerCase().includes(q)
+  );
+
+  const tbody = document.getElementById('tbody');
   tbody.innerHTML = '';
-  data.forEach(p => {
-    const tr = document.createElement('tr');
-    if (p.name === selectedName) tr.classList.add('selected');
-    const urls = (p.startupUrls || []).join(', ') || '—';
-    const lastUsed = p.last_used_at ? new Date(p.last_used_at).toLocaleString() : 'Never';
+  rows.forEach(p => {
+    const isRunning = running.has(p.name);
+    const h = health[p.proxy];
     const proxyBadge = p.proxy
-      ? `<span class="badge badge-proxy">${p.proxy}</span>`
-      : `<span class="badge badge-none">Direct</span>`;
+      ? `<span class="badge ${h ? (h.ok ? 'b-ok' : 'b-err') : 'b-proxy'}">${h ? (h.ok ? `✓ ${p.proxy}` : `✗ ${p.proxy}`) : p.proxy}</span>`
+      : `<span class="badge b-direct">Direct</span>`;
     const geoBadge = p.geo
-      ? `<span class="badge badge-geo">📍 ${p.geo.city}, ${p.geo.countryCode}</span>`
+      ? `<span class="badge b-geo">📍 ${p.geo.city}, ${p.geo.countryCode}</span>`
       : '—';
+    const urls = (p.startupUrls||[]).join(', ') || '—';
+    const lastUsed = p.last_used_at ? new Date(p.last_used_at).toLocaleString() : 'Never';
+
+    const tr = document.createElement('tr');
+    if (p.name === selected) tr.classList.add('selected');
     tr.innerHTML = `
-      <td><strong>${p.name}</strong></td>
+      <td>
+        <div class="name-cell">
+          ${isRunning ? '<span class="run-dot"></span>' : ''}
+          <div>
+            <strong>${p.name}</strong>
+            ${p.notes ? `<div class="notes-preview">${p.notes.slice(0,40)}${p.notes.length>40?'…':''}</div>` : ''}
+          </div>
+        </div>
+      </td>
       <td>${p.preset}</td>
       <td>${proxyBadge}</td>
       <td>${geoBadge}</td>
-      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${urls}">${urls}</td>
+      <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${urls}">${urls}</td>
       <td>${lastUsed}</td>
     `;
     tr.onclick = () => selectProfile(p.name);
@@ -189,192 +282,262 @@ function renderTable(data) {
   });
 }
 
-function filterTable(q) {
-  const filtered = profiles.filter(p =>
-    p.name.toLowerCase().includes(q.toLowerCase()) ||
-    (p.preset || '').toLowerCase().includes(q.toLowerCase()) ||
-    (p.proxy || '').toLowerCase().includes(q.toLowerCase())
-  );
-  renderTable(filtered);
+function filterTable(q) { renderTable(); }
+
+function updateHeader() {
+  document.getElementById('hdr-total').textContent = `${profiles.length} profile${profiles.length!==1?'s':''}`;
+  document.getElementById('hdr-running').textContent = `${running.size} running`;
 }
 
+// ── Selection ─────────────────────────────────────────────────────────────────
 function selectProfile(name) {
-  selectedName = name;
+  selected = name;
   document.getElementById('btn-launch').disabled = false;
-  document.getElementById('btn-delete').disabled = false;
-  renderTable(profiles.filter(p => {
-    const q = document.querySelector('.search').value;
-    return !q || p.name.toLowerCase().includes(q.toLowerCase());
-  }));
+  document.getElementById('btn-dup').disabled = false;
+  document.getElementById('btn-del').disabled = false;
+  renderTable();
   showDetail(name);
+  updateDetailButtons();
+}
+
+function updateDetailButtons() {
+  if (!selected) return;
+  const isRunning = running.has(selected);
+  const btnLaunch  = document.getElementById('btn-launch');
+  const btnCloseP  = document.getElementById('btn-close-p');
+  const dLaunch    = document.getElementById('d-btn-launch');
+  const dClose     = document.getElementById('d-btn-close');
+  const dPaste     = document.getElementById('d-btn-paste');
+
+  btnLaunch.disabled  = isRunning;
+  btnLaunch.textContent = isRunning ? '▶ Running' : '▶ Launch';
+  btnCloseP.style.display = isRunning ? '' : 'none';
+  dLaunch.disabled    = isRunning;
+  dLaunch.textContent = isRunning ? '▶ Running' : '▶ Launch';
+  dClose.style.display  = isRunning ? '' : 'none';
+  dPaste.style.display  = isRunning ? '' : 'none';
 }
 
 function showDetail(name) {
   const p = profiles.find(x => x.name === name);
   if (!p) return;
-  const panel = document.getElementById('detail-panel');
-  panel.classList.add('open');
-  document.getElementById('detail-name').textContent = p.name;
+  document.getElementById('detail').classList.remove('closed');
+  document.getElementById('d-name').textContent = p.name;
+  document.getElementById('d-sub').textContent  = `${p.preset} · seed ${p.seed}`;
+
   const rows = [
-    ['Preset', p.preset],
-    ['Proxy', p.proxy || 'Direct (no proxy)'],
-    ['Timezone', p.timezone],
-    ['Language', p.language],
-    ['Location', p.geo ? `${p.geo.city}, ${p.geo.country}\n${p.geo.lat}, ${p.geo.lon}` : 'Not set'],
-    ['Startup URLs', (p.startupUrls || []).join('\n') || 'None'],
-    ['Cookies File', p.cookiesFile || 'None'],
-    ['Created', new Date(p.created_at).toLocaleString()],
-    ['Last Used', p.last_used_at ? new Date(p.last_used_at).toLocaleString() : 'Never'],
-    ['Fingerprint Seed', p.seed],
+    ['Proxy',         p.proxy || 'Direct (no proxy)'],
+    ['Proxy Exit IP', p.geo ? `${p.geo.ip} (${p.geo.city}, ${p.geo.country})` : '—'],
+    ['Timezone',      p.timezone],
+    ['Language',      p.language],
+    ['Geolocation',   p.geo ? `${p.geo.lat}, ${p.geo.lon}` : '—'],
+    ['Startup URLs',  (p.startupUrls||[]).join('\n') || 'None'],
+    ['Cookies File',  p.cookiesFile || 'None'],
+    ['Notes',         p.notes || '—'],
+    ['Created',       new Date(p.created_at).toLocaleString()],
+    ['Last Used',     p.last_used_at ? new Date(p.last_used_at).toLocaleString() : 'Never'],
   ];
-  document.getElementById('detail-content').innerHTML = rows.map(([k,v]) =>
-    `<div class="detail-row"><div class="key">${k}</div><div class="val">${v}</div></div>`
+  document.getElementById('d-rows').innerHTML = rows.map(([k,v]) =>
+    `<div class="d-row"><div class="k">${k}</div><div class="v">${v}</div></div>`
   ).join('');
 }
 
+// ── Actions ───────────────────────────────────────────────────────────────────
 async function launchSelected() {
-  if (!selectedName) return;
-  setStatus(`Launching "${selectedName}"...`, '');
+  if (!selected || running.has(selected)) return;
+  setStatus(`Launching "${selected}"…`, 'info');
   try {
-    await window.api.launchProfile(selectedName, null);
-    setStatus(`"${selectedName}" launched`, 'ok');
-    await loadProfiles();
-  } catch (e) {
-    setStatus(`Launch failed: ${e.message}`, 'err');
-  }
+    await window.api.launchProfile(selected, null);
+    setStatus(`"${selected}" launched`, 'ok');
+    await refresh();
+    updateDetailButtons();
+  } catch(e) { setStatus(e.message, 'err'); }
+}
+
+async function closeSelected() {
+  if (!selected) return;
+  await window.api.closeProfile(selected);
+  setStatus(`"${selected}" closed`, 'ok');
+  await refresh();
+  updateDetailButtons();
 }
 
 async function deleteSelected() {
-  if (!selectedName) return;
-  if (!confirm(`Delete profile "${selectedName}" and ALL its data (cookies, history)? This cannot be undone.`)) return;
-  await window.api.deleteProfile(selectedName);
-  selectedName = null;
-  document.getElementById('btn-launch').disabled = true;
-  document.getElementById('btn-delete').disabled = true;
-  document.getElementById('detail-panel').classList.remove('open');
-  setStatus('Profile deleted', 'ok');
-  await loadProfiles();
+  if (!selected) return;
+  if (!confirm(`Delete "${selected}" and all its data? This cannot be undone.`)) return;
+  await window.api.deleteProfile(selected);
+  selected = null;
+  document.getElementById('detail').classList.add('closed');
+  ['btn-launch','btn-dup','btn-del'].forEach(id => document.getElementById(id).disabled = true);
+  document.getElementById('btn-close-p').style.display = 'none';
+  setStatus('Deleted', 'ok');
+  await refresh();
 }
 
-// ── Create Modal ──────────────────────────────────────────────────────────────
+async function duplicateSelected() {
+  if (!selected) return;
+  const newName = prompt(`Duplicate "${selected}" as:`, `${selected} (copy)`);
+  if (!newName) return;
+  try {
+    await window.api.duplicateProfile(selected, newName);
+    setStatus(`Duplicated as "${newName}"`, 'ok');
+    await refresh();
+  } catch(e) { setStatus(e.message, 'err'); }
+}
 
+async function launchAll() {
+  setStatus('Launching all profiles…', 'info');
+  const results = await window.api.launchAll();
+  const launched = results.filter(r => r.ok).length;
+  setStatus(`Launched ${launched} profile(s)`, 'ok');
+  await refresh();
+}
+
+async function closeAll() {
+  await window.api.closeAll();
+  setStatus('All profiles closed', 'ok');
+  await refresh();
+  updateDetailButtons();
+}
+
+async function runHealthCheck() {
+  setStatus('Checking all proxies…', 'info');
+  health = await window.api.healthCheck();
+  renderTable();
+  const ok  = Object.values(health).filter(h => h.ok).length;
+  const bad = Object.values(health).length - ok;
+  setStatus(`Proxy health: ${ok} OK, ${bad} failed`, ok && !bad ? 'ok' : 'err');
+}
+
+async function pasteClipboardCookies() {
+  if (!selected) return;
+  setStatus('Injecting cookies from clipboard…', 'info');
+  const r = await window.api.pasteClipboardCookies(selected);
+  r.ok ? setStatus(`Injected ${r.count} cookies`, 'ok') : setStatus(r.error, 'err');
+}
+
+// ── Detail panel quick edits ──────────────────────────────────────────────────
+async function promptSetProxy() {
+  if (!selected) return;
+  const p = profiles.find(x => x.name === selected);
+  const val = prompt('New proxy URL (or "none" to remove):', p?.proxy || '');
+  if (val === null) return;
+  await window.api.setProxy(selected, val || 'none');
+  setStatus('Proxy updated', 'ok');
+  await refresh(); showDetail(selected);
+}
+async function promptSetUrls() {
+  if (!selected) return;
+  const p = profiles.find(x => x.name === selected);
+  const val = prompt('Startup URLs (comma-separated):', (p?.startupUrls||[]).join(', '));
+  if (val === null) return;
+  await window.api.setUrls(selected, val.split(',').map(u=>u.trim()).filter(Boolean));
+  setStatus('URLs updated', 'ok');
+  await refresh(); showDetail(selected);
+}
+async function promptSetCookies() {
+  if (!selected) return;
+  const p = profiles.find(x => x.name === selected);
+  const val = prompt('Path to cookies JSON file (blank to remove):', p?.cookiesFile || '');
+  if (val === null) return;
+  await window.api.setCookies(selected, val || null);
+  setStatus('Cookies file updated', 'ok');
+  await refresh(); showDetail(selected);
+}
+async function promptSetNotes() {
+  if (!selected) return;
+  const p = profiles.find(x => x.name === selected);
+  const val = prompt('Notes:', p?.notes || '');
+  if (val === null) return;
+  await window.api.setNotes(selected, val);
+  setStatus('Notes saved', 'ok');
+  await refresh(); showDetail(selected);
+}
+
+// ── Create modal ──────────────────────────────────────────────────────────────
 async function openCreateModal() {
   const presets = await window.api.listPresets();
-  const sel = document.getElementById('f-preset');
-  sel.innerHTML = presets.map(p => `<option value="${p}">${p}</option>`).join('');
-  document.getElementById('f-name').value = '';
-  document.getElementById('f-proxy').value = '';
-  document.getElementById('f-urls').value = '';
-  document.getElementById('f-cookies').value = '';
-  document.getElementById('f-timezone').value = '';
-  document.getElementById('f-language').value = '';
+  document.getElementById('f-preset').innerHTML =
+    presets.map(p => `<option value="${p}">${p}</option>`).join('');
+  ['f-name','f-proxy','f-urls','f-cookies','f-timezone','f-language','f-notes']
+    .forEach(id => document.getElementById(id).value = '');
   document.getElementById('geo-banner').classList.remove('show');
-  document.getElementById('create-modal').classList.add('open');
+  document.getElementById('modal-create').classList.add('open');
   setTimeout(() => document.getElementById('f-name').focus(), 50);
 }
 
-function closeModal() {
-  document.getElementById('create-modal').classList.remove('open');
-}
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
 function onProxyInput() {
-  clearTimeout(geoDetectTimer);
+  clearTimeout(geoTimer);
   const proxy = document.getElementById('f-proxy').value.trim();
-  if (!proxy) {
-    document.getElementById('geo-banner').classList.remove('show');
-    return;
-  }
-  document.getElementById('geo-banner').textContent = 'Detecting proxy location...';
-  document.getElementById('geo-banner').classList.add('show');
-  geoDetectTimer = setTimeout(async () => {
+  if (!proxy) { document.getElementById('geo-banner').classList.remove('show'); return; }
+  const banner = document.getElementById('geo-banner');
+  banner.textContent = 'Detecting proxy location…';
+  banner.classList.add('show');
+  geoTimer = setTimeout(async () => {
     try {
       const geo = await window.api.detectGeo(proxy);
       document.getElementById('f-timezone').value = geo.timezone;
       document.getElementById('f-language').value = geo.language;
-      document.getElementById('geo-banner').textContent =
-        `✓ Proxy exit IP: ${geo.ip} → ${geo.city}, ${geo.country} · TZ: ${geo.timezone} · Lang: ${geo.language} · GPS: ${geo.lat}, ${geo.lon}`;
-    } catch (e) {
-      document.getElementById('geo-banner').textContent = `⚠ Could not detect: ${e.message}. Set timezone/language manually.`;
+      banner.textContent = `✓ Exit IP: ${geo.ip} · ${geo.city}, ${geo.country} · TZ: ${geo.timezone} · Lang: ${geo.language} · GPS: ${geo.lat}, ${geo.lon}`;
+    } catch(e) {
+      banner.textContent = `⚠ ${e.message} — fill timezone/language manually`;
     }
-  }, 800);
+  }, 700);
+}
+
+async function testProxyInModal() {
+  const proxy = document.getElementById('f-proxy').value.trim();
+  if (!proxy) { alert('Enter a proxy URL first'); return; }
+  const banner = document.getElementById('geo-banner');
+  banner.textContent = 'Testing proxy…'; banner.classList.add('show');
+  const r = await window.api.testProxy(proxy);
+  banner.textContent = r.ok
+    ? `✓ Working — Exit IP: ${r.ip}, ${r.city}, ${r.country} (${r.ms}ms)`
+    : `✗ Failed — ${r.error} (${r.ms}ms)`;
 }
 
 async function submitCreate() {
   const name = document.getElementById('f-name').value.trim();
   if (!name) { alert('Profile name is required'); return; }
-
   const urlsRaw = document.getElementById('f-urls').value.trim();
-  const startupUrls = urlsRaw ? urlsRaw.split(',').map(u => u.trim()).filter(Boolean) : [];
-
-  const btn = document.getElementById('btn-create-submit');
-  btn.disabled = true;
-  btn.textContent = 'Creating...';
-
+  const btn = document.getElementById('btn-submit-create');
+  btn.disabled = true; btn.textContent = 'Creating…';
   try {
-    await window.api.createProfile({
+    const createPromise = window.api.createProfile({
       name,
-      preset: document.getElementById('f-preset').value,
-      proxy: document.getElementById('f-proxy').value.trim() || null,
-      timezone: document.getElementById('f-timezone').value.trim() || 'America/New_York',
-      language: document.getElementById('f-language').value.trim() || 'en-US',
-      startupUrls,
+      preset:      document.getElementById('f-preset').value,
+      proxy:       document.getElementById('f-proxy').value.trim() || null,
+      timezone:    document.getElementById('f-timezone').value.trim() || 'America/New_York',
+      language:    document.getElementById('f-language').value.trim() || 'en-US',
+      startupUrls: urlsRaw ? urlsRaw.split(',').map(u=>u.trim()).filter(Boolean) : [],
       cookiesFile: document.getElementById('f-cookies').value.trim() || null,
+      notes:       document.getElementById('f-notes').value.trim(),
     });
-    closeModal();
+    const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('Profile creation timed out — check proxy or try again')), 15000));
+    await Promise.race([createPromise, timeout]);
+    closeModal('modal-create');
     setStatus(`Profile "${name}" created`, 'ok');
-    await loadProfiles();
-  } catch (e) {
-    setStatus(`Error: ${e.message}`, 'err');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Create Profile';
-  }
+    await refresh();
+  } catch(e) { setStatus(e.message, 'err'); }
+  finally { btn.disabled = false; btn.textContent = 'Create Profile'; }
 }
 
-// ── Quick edits from detail panel ─────────────────────────────────────────────
-
-async function promptSetProxy() {
-  if (!selectedName) return;
-  const p = profiles.find(x => x.name === selectedName);
-  const val = prompt('New proxy URL (or "none" to remove):', p?.proxy || '');
-  if (val === null) return;
-  await window.api.setProxy(selectedName, val || 'none');
-  setStatus('Proxy updated', 'ok');
-  await loadProfiles();
-  showDetail(selectedName);
-}
-
-async function promptSetUrls() {
-  if (!selectedName) return;
-  const p = profiles.find(x => x.name === selectedName);
-  const val = prompt('Startup URLs (comma-separated):', (p?.startupUrls || []).join(', '));
-  if (val === null) return;
-  const urls = val.split(',').map(u => u.trim()).filter(Boolean);
-  await window.api.setUrls(selectedName, urls);
-  setStatus('Startup URLs updated', 'ok');
-  await loadProfiles();
-  showDetail(selectedName);
-}
-
-async function promptSetCookies() {
-  if (!selectedName) return;
-  const p = profiles.find(x => x.name === selectedName);
-  const val = prompt('Path to cookies JSON file (or leave blank to remove):', p?.cookiesFile || '');
-  if (val === null) return;
-  await window.api.setCookies(selectedName, val || null);
-  setStatus('Cookies file updated', 'ok');
-  await loadProfiles();
-  showDetail(selectedName);
-}
-
+// ── Utilities ─────────────────────────────────────────────────────────────────
 function setStatus(msg, type) {
-  const bar = document.getElementById('status-bar');
-  bar.textContent = msg;
-  bar.className = 'status ' + (type || '');
+  const bar = document.getElementById('statusbar');
+  document.getElementById('status-msg').textContent = msg;
+  document.getElementById('status-time').textContent = new Date().toLocaleTimeString();
+  bar.className = 'statusbar ' + (type || '');
 }
 
-// ── Init ──────────────────────────────────────────────────────────────────────
-loadProfiles();
+// Close modal on overlay click
+document.querySelectorAll('.overlay').forEach(el =>
+  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); })
+);
+
+boot();
 </script>
 </body>
 </html>

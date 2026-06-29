@@ -36,7 +36,7 @@ function save(profile) {
   fs.writeFileSync(profilePath(profile.name), JSON.stringify(profile, null, 2));
 }
 
-function create({ name, preset, proxy = null, timezone = 'America/New_York', language = 'en-US', startupUrls = [], cookiesFile = null, geo = null }) {
+function create({ name, preset, proxy = null, timezone = 'America/New_York', language = 'en-US', startupUrls = [], cookiesFile = null, geo = null, notes = '' }) {
   ensureDirs();
   if (exists(name)) throw new Error(`Profile "${name}" already exists.`);
 
@@ -50,7 +50,8 @@ function create({ name, preset, proxy = null, timezone = 'America/New_York', lan
     language,
     startupUrls,
     cookiesFile,
-    geo,          // { ip, city, country, lat, lon, timezone, language } — auto-detected from proxy
+    geo,
+    notes,
     created_at: new Date().toISOString(),
     last_used_at: null,
   };
@@ -81,6 +82,31 @@ function setStartupUrls(name, urls) {
   return profile;
 }
 
+function setNotes(name, notes) {
+  const profile = load(name);
+  profile.notes = notes;
+  save(profile);
+  return profile;
+}
+
+// QoL 1: Duplicate a profile — copy all settings, fresh seed + new name
+function duplicate(name, newName) {
+  const src = load(name);
+  if (exists(newName)) throw new Error(`Profile "${newName}" already exists.`);
+  const copy = {
+    ...src,
+    id: randomUUID(),
+    name: newName,
+    seed: randomUUID().replace(/-/g, '').slice(0, 16), // fresh fingerprint
+    created_at: new Date().toISOString(),
+    last_used_at: null,
+  };
+  ensureDirs();
+  fs.writeFileSync(profilePath(newName), JSON.stringify(copy, null, 2));
+  fs.mkdirSync(userDataDir(newName), { recursive: true });
+  return copy;
+}
+
 function touchLastUsed(name) {
   const profile = load(name);
   profile.last_used_at = new Date().toISOString();
@@ -103,4 +129,4 @@ function listAll() {
     .sort((a, b) => (b.last_used_at || '').localeCompare(a.last_used_at || ''));
 }
 
-module.exports = { create, load, save, setProxy, setCookiesFile, setStartupUrls, touchLastUsed, remove, listAll, userDataDir };
+module.exports = { create, load, save, setProxy, setCookiesFile, setStartupUrls, setNotes, duplicate, touchLastUsed, remove, listAll, userDataDir };

@@ -127,10 +127,11 @@ async function detectProxyGeo(proxyUrl) {
   let raw;
   try {
     const apiUrl = 'http://ip-api.com/json?fields=status,country,countryCode,city,regionName,lat,lon,timezone,query';
+    const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('geo request timed out after 10s')), 10000));
     if (isSocks) {
-      raw = await getViaSocks5Proxy(proxy, apiUrl);
+      raw = await Promise.race([getViaSocks5Proxy(proxy, apiUrl), timeout]);
     } else {
-      raw = await getViaHttpProxy(proxy, apiUrl);
+      raw = await Promise.race([getViaHttpProxy(proxy, apiUrl), timeout]);
     }
   } catch (err) {
     throw new Error(`Could not reach geo API through proxy: ${err.message}`);
