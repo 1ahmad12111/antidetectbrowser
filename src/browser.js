@@ -170,11 +170,11 @@ async function launch(profile, overrideCookiesFile = null) {
     if (processRegistry) processRegistry.delete(profile.name);
   });
 
-  // Fix 3 prep: register process so UI can track live status
-  if (processRegistry) processRegistry.set(profile.name, child);
+  // Register process so UI can track live status + graceful close
+  if (processRegistry) processRegistry.set(profile.name, { child, debugPort });
 
-  // Inject timezone, geolocation, cookies via a single CDP session
-  setTimeout(async () => {
+  // Inject timezone/geo/cookies — poll until Chrome is ready instead of fixed 3s delay
+  (async () => {
     try {
       await injectAll(debugPort, {
         timezone: profile.timezone,
@@ -185,7 +185,7 @@ async function launch(profile, overrideCookiesFile = null) {
     } catch (err) {
       console.error(`[cdp] ${err.message}`);
     }
-  }, 3000);
+  })();
 
   child.unref();
   return { debugPort, pid: child.pid };

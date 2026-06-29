@@ -8,7 +8,7 @@ const { create, load, setProxy, setCookiesFile, setStartupUrls, setNotes, duplic
 const { launch, setProcessRegistry } = require('../src/browser');
 const { detectProxyGeo } = require('../src/geo');
 const { listPresets } = require('../src/presets');
-const { injectCookiesFromText } = require('../src/cookies');
+const { injectCookiesFromText, gracefulClose } = require('../src/cookies');
 
 // Fix 3: process registry — tracks which profiles are currently running
 const runningProfiles = new Map(); // name → { child, debugPort, pid }
@@ -67,12 +67,12 @@ ipcMain.handle('profiles:launch', async (_, name, cookiesFile) => {
   return { ok: true, ...result };
 });
 
-// Fix 3: close a specific running profile
-ipcMain.handle('profiles:close', (_, name) => {
+// Fix 3: close a specific running profile — graceful CDP shutdown so session saves cleanly
+ipcMain.handle('profiles:close', async (_, name) => {
   const entry = runningProfiles.get(name);
   if (entry) {
-    try { entry.kill(); } catch (_) {}
     runningProfiles.delete(name);
+    await gracefulClose(entry.debugPort, entry.child);
   }
   return { ok: true };
 });
@@ -93,18 +93,17 @@ ipcMain.handle('profiles:launch-all', async () => {
   return results;
 });
 
-// QoL 4: close all running profiles
-ipcMain.handle('profiles:close-all', () => {
-  for (const [name, child] of runningProfiles.entries()) {
-    try { child.kill(); } catch (_) {}
-  }
+// QoL 4: close all running profiles gracefully
+ipcMain.handle('profiles:close-all', async () => {
+  const entries = Array.from(runningProfiles.entries());
   runningProfiles.clear();
+  await Promise.all(entries.map(([, entry]) => gracefulClose(entry.debugPort, entry.child)));
   return { ok: true };
 });
 
-ipcMain.handle('profiles:delete', (_, name) => {
+ipcMain.handle('profiles:delete', async (_, name) => {
   const entry = runningProfiles.get(name);
-  if (entry) { try { entry.kill(); } catch (_) {} runningProfiles.delete(name); }
+  if (entry) { runningProfiles.delete(name); await gracefulClose(entry.debugPort, entry.child); }
   remove(name);
   return { ok: true };
 });

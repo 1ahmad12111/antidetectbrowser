@@ -25,16 +25,38 @@ function waitForChrome(port, retries = 20) {
   });
 }
 
+// Open a CDP WebSocket to a specific debugger URL
+function connectWS(debuggerUrl) {
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(debuggerUrl);
+    ws.on('open', () => resolve(ws));
+    ws.on('error', reject);
+  });
+}
+
 // Open a CDP WebSocket to the first available page target
 async function openCDPSession(port) {
   const pages = await waitForChrome(port);
   const target = pages.find(p => p.type === 'page') || pages[0];
   if (!target?.webSocketDebuggerUrl) throw new Error('No debuggable page found in Chrome');
+  return connectWS(target.webSocketDebuggerUrl);
+}
 
+// Open a CDP WebSocket to the browser endpoint (for Browser.close)
+async function openBrowserSession(port) {
+  // /json/version returns the browser-level websocket URL
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(target.webSocketDebuggerUrl);
-    ws.on('open', () => resolve(ws));
-    ws.on('error', reject);
+    http.get(`http://127.0.0.1:${port}/json/version`, (res) => {
+      let data = '';
+      res.on('data', d => data += d);
+      res.on('end', () => {
+        try {
+          const { webSocketDebuggerUrl } = JSON.parse(data);
+          if (!webSocketDebuggerUrl) return reject(new Error('No browser WS URL'));
+          resolve(connectWS(webSocketDebuggerUrl));
+        } catch (e) { reject(e); }
+      });
+    }).on('error', reject);
   });
 }
 
@@ -69,33 +91,73 @@ function loadCookiesFile(cookiesPath) {
   });
 }
 
-// Run all CDP injections in a single session: timezone, geolocation, cookies
+// Apply timezone + geolocation overrides to every open page target
+async function injectEmulationToAllTabs(port, { timezone, lat, lon }) {
+  const pages = await waitForChrome(port);
+  const pageTargets = pages.filter(p => p.type === 'page' && p.webSocketDebuggerUrl);
+  await Promise.all(pageTargets.map(async (target) => {
+    let ws;
+    try {
+      ws = await connectWS(target.webSocketDebuggerUrl);
+      if (timezone) {
+        await sendCDP(ws, 'Emulation.setTimezoneOverride', { timezoneId: timezone });
+      }
+      if (lat != null && lon != null) {
+        await sendCDP(ws, 'Emulation.setGeolocationOverride', { latitude: lat, longitude: lon, accuracy: 10 });
+      }
+    } catch (_) {
+      // tab may have closed between listing and connecting — skip it
+    } finally {
+      ws?.close();
+    }
+  }));
+  console.log(`  Timezone/geo applied to ${pageTargets.length} tab(s): ${timezone}`);
+}
+
+// Run all CDP injections: timezone + geo to ALL tabs, cookies to first tab
 async function injectAll(port, { timezone, lat, lon, cookiesPath }) {
-  const ws = await openCDPSession(port);
+  // Apply timezone + geolocation to every open tab
+  if (timezone || (lat != null && lon != null)) {
+    await injectEmulationToAllTabs(port, { timezone, lat, lon });
+  }
+
+  // Cookies go to the browser-wide storage (first tab CDP session is enough)
+  if (cookiesPath) {
+    const ws = await openCDPSession(port);
+    try {
+      if (fs.existsSync(cookiesPath)) {
+        const cookies = loadCookiesFile(cookiesPath);
+        await sendCDP(ws, 'Network.enable');
+        await sendCDP(ws, 'Network.setCookies', { cookies });
+        console.log(`  Injected ${cookies.length} cookies`);
+      } else {
+        console.warn(`  [warn] Cookies file not found: ${cookiesPath}`);
+      }
+    } finally {
+      ws.close();
+    }
+  }
+}
+
+// Gracefully close Chrome via CDP so it saves session state cleanly.
+// Falls back to SIGKILL if CDP close doesn't work within the timeout.
+async function gracefulClose(port, childProcess) {
   try {
-    // Fix 1 — Timezone via CDP (replaces the fake --timezone flag)
-    if (timezone) {
-      await sendCDP(ws, 'Emulation.setTimezoneOverride', { timezoneId: timezone });
-      console.log(`  Timezone locked: ${timezone}`);
-    }
-
-    // Geolocation
-    if (lat != null && lon != null) {
-      await sendCDP(ws, 'Emulation.setGeolocationOverride', { latitude: lat, longitude: lon, accuracy: 10 });
-      console.log(`  Geolocation locked: ${lat}, ${lon}`);
-    }
-
-    // Cookies
-    if (cookiesPath && fs.existsSync(cookiesPath)) {
-      const cookies = loadCookiesFile(cookiesPath);
-      await sendCDP(ws, 'Network.enable');
-      await sendCDP(ws, 'Network.setCookies', { cookies });
-      console.log(`  Injected ${cookies.length} cookies`);
-    } else if (cookiesPath) {
-      console.warn(`  [warn] Cookies file not found: ${cookiesPath}`);
-    }
-  } finally {
-    ws.close();
+    const ws = await openBrowserSession(port);
+    await new Promise((resolve) => {
+      // Browser.close makes Chrome exit cleanly — session is flushed to disk
+      ws.send(JSON.stringify({ id: 1, method: 'Browser.close', params: {} }));
+      // Give it 3s to exit on its own before we force-kill
+      const timer = setTimeout(() => {
+        ws.close();
+        try { childProcess.kill(); } catch (_) {}
+        resolve();
+      }, 3000);
+      childProcess.once('exit', () => { clearTimeout(timer); ws.close(); resolve(); });
+    });
+  } catch (_) {
+    // CDP not reachable (browser already closed or never started) — just kill
+    try { childProcess.kill(); } catch (_) {}
   }
 }
 
@@ -119,4 +181,4 @@ async function injectCookiesFromText(port, jsonText) {
   }
 }
 
-module.exports = { injectAll, injectCookiesFromText, waitForChrome };
+module.exports = { injectAll, injectCookiesFromText, gracefulClose, waitForChrome };
