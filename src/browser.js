@@ -9,29 +9,50 @@ const { userDataDir, touchLastUsed } = require('./profiles');
 
 const ROOT = path.resolve(__dirname, '..');
 
+const IS_WINDOWS = process.platform === 'win32';
+
 // Resolve the patched Chromium binary. Checks (in order):
-//   1. CHROME_BIN env var (set this to point at your CloakBrowser binary)
-//   2. ./bin/chrome (drop the binary here after building)
-//   3. System chromium / google-chrome as fallback (unpatched — for testing only)
+//   1. CHROME_BIN env var
+//   2. ./bin/chrome.exe (Windows) or ./bin/chrome (Linux)
+//   3. System Chrome/Chromium as fallback (unpatched — for testing only)
 function resolveBinary() {
   if (process.env.CHROME_BIN) return process.env.CHROME_BIN;
 
-  const localBin = path.join(ROOT, 'bin', 'chrome');
+  const localBin = path.join(ROOT, 'bin', IS_WINDOWS ? 'chrome.exe' : 'chrome');
   if (fs.existsSync(localBin)) return localBin;
+
+  if (IS_WINDOWS) {
+    const windowsCandidates = [
+      path.join(process.env['PROGRAMFILES'] || 'C:\\Program Files', 'Google\\Chrome\\Application\\chrome.exe'),
+      path.join(process.env['PROGRAMFILES(X86)'] || 'C:\\Program Files (x86)', 'Google\\Chrome\\Application\\chrome.exe'),
+      path.join(process.env['LOCALAPPDATA'] || '', 'Google\\Chrome\\Application\\chrome.exe'),
+    ];
+    for (const candidate of windowsCandidates) {
+      if (fs.existsSync(candidate)) {
+        console.warn(`[warn] Using system Chrome — fingerprint patches NOT active. Drop your patched binary at bin\\chrome.exe`);
+        return candidate;
+      }
+    }
+    throw new Error(
+      'No Chrome binary found.\n' +
+      '  Option 1: Set CHROME_BIN=C:\\path\\to\\chrome.exe in a .env file or before running\n' +
+      '  Option 2: Copy your patched chrome.exe to bin\\chrome.exe\n' +
+      '  Option 3: Install Google Chrome for testing (no stealth patches)'
+    );
+  }
 
   for (const candidate of ['chromium-browser', 'chromium', 'google-chrome', 'google-chrome-stable']) {
     try {
       require('child_process').execSync(`which ${candidate}`, { stdio: 'ignore' });
-      console.warn(`[warn] Using system ${candidate} — fingerprint patches NOT active. Set CHROME_BIN to your patched binary.`);
+      console.warn(`[warn] Using system ${candidate} — fingerprint patches NOT active.`);
       return candidate;
     } catch (_) {}
   }
 
   throw new Error(
     'No Chrome binary found.\n' +
-    '  Option 1: Set CHROME_BIN=/path/to/cloakbrowser/chrome\n' +
-    '  Option 2: Copy your patched binary to ./bin/chrome\n' +
-    '  Option 3: Install chromium-browser for testing (no stealth)'
+    '  Option 1: Set CHROME_BIN=/path/to/chrome\n' +
+    '  Option 2: Copy your patched binary to bin/chrome'
   );
 }
 
