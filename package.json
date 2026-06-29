@@ -14,7 +14,8 @@
     "set-proxy": "node src/launch.js set-proxy"
   },
   "dependencies": {
-    "cloakbrowser": "latest"
+    "cloakbrowser": "latest",
+    "ws": "^8.18.0"
   },
   "engines": {
     "node": ">=18.0.0"

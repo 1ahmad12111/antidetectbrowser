@@ -6,6 +6,7 @@ const os = require('os');
 const path = require('path');
 const { getPreset } = require('./presets');
 const { userDataDir, touchLastUsed } = require('./profiles');
+const { injectCookies } = require('./cookies');
 
 const ROOT = path.resolve(__dirname, '..');
 const IS_WINDOWS = process.platform === 'win32';
@@ -86,10 +87,15 @@ function writeFpConfig(profile, preset) {
   return tmpFile;
 }
 
-function buildFlags(profile, preset, fpConfigPath, dataDir) {
+function buildFlags(profile, preset, fpConfigPath, dataDir, debugPort) {
+  const urls = (profile.startupUrls || []).map(u =>
+    u.startsWith('http') ? u : `https://${u}`
+  );
+
   return [
     `--user-data-dir=${dataDir}`,
     `--fp-config=${fpConfigPath}`,
+    `--remote-debugging-port=${debugPort}`,
 
     ...(profile.proxy
       ? [`--proxy-server=${profile.proxy}`, '--force-webrtc-ip-handling-policy=disable_non_proxied_udp']
@@ -104,21 +110,35 @@ function buildFlags(profile, preset, fpConfigPath, dataDir) {
     '--disable-default-apps',
     '--disable-background-networking',
     '--disable-sync',
+
+    // Open startup URLs as tabs (each URL = one tab)
+    ...urls,
   ];
 }
 
-async function launch(profile) {
+// Pick a random high port for remote debugging so multiple profiles don't clash
+function randomDebugPort() {
+  return 9222 + Math.floor(Math.random() * 1000);
+}
+
+async function launch(profile, overrideCookiesFile = null) {
   const preset = getPreset(profile.preset);
   const dataDir = userDataDir(profile.name);
   const fpConfigPath = writeFpConfig(profile, preset);
   const binary = await resolveBinary();
-  const flags = buildFlags(profile, preset, fpConfigPath, dataDir);
+  const debugPort = randomDebugPort();
+  const flags = buildFlags(profile, preset, fpConfigPath, dataDir, debugPort);
+
+  const startupUrls = profile.startupUrls || [];
+  const cookiesFile = overrideCookiesFile || profile.cookiesFile || null;
 
   console.log(`\nLaunching profile: ${profile.name}`);
-  console.log(`  Preset  : ${profile.preset}`);
-  console.log(`  Proxy   : ${profile.proxy || 'none (direct)'}`);
-  console.log(`  Timezone: ${profile.timezone}`);
-  console.log(`  Binary  : ${binary}\n`);
+  console.log(`  Preset       : ${profile.preset}`);
+  console.log(`  Proxy        : ${profile.proxy || 'none (direct)'}`);
+  console.log(`  Timezone     : ${profile.timezone}`);
+  console.log(`  Startup URLs : ${startupUrls.length ? startupUrls.join(', ') : 'none'}`);
+  console.log(`  Cookies file : ${cookiesFile || 'none'}`);
+  console.log(`  Binary       : ${binary}\n`);
 
   touchLastUsed(profile.name);
 
@@ -137,6 +157,17 @@ async function launch(profile) {
     console.error(`Failed to launch browser: ${err.message}`);
     process.exit(1);
   });
+
+  // Inject cookies via CDP after Chrome starts
+  if (cookiesFile) {
+    setTimeout(async () => {
+      try {
+        await injectCookies(debugPort, cookiesFile);
+      } catch (err) {
+        console.error(`[cookies] Failed to inject: ${err.message}`);
+      }
+    }, 3000); // wait 3s for Chrome to fully start
+  }
 
   child.unref();
 }

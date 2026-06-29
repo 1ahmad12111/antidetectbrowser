@@ -36,7 +36,7 @@ function save(profile) {
   fs.writeFileSync(profilePath(profile.name), JSON.stringify(profile, null, 2));
 }
 
-function create({ name, preset, proxy = null, timezone = 'America/New_York', language = 'en-US' }) {
+function create({ name, preset, proxy = null, timezone = 'America/New_York', language = 'en-US', startupUrls = [], cookiesFile = null }) {
   ensureDirs();
   if (exists(name)) throw new Error(`Profile "${name}" already exists.`);
 
@@ -48,6 +48,8 @@ function create({ name, preset, proxy = null, timezone = 'America/New_York', lan
     proxy,
     timezone,
     language,
+    startupUrls,
+    cookiesFile,
     created_at: new Date().toISOString(),
     last_used_at: null,
   };
@@ -60,6 +62,20 @@ function create({ name, preset, proxy = null, timezone = 'America/New_York', lan
 function setProxy(name, proxy) {
   const profile = load(name);
   profile.proxy = proxy;
+  save(profile);
+  return profile;
+}
+
+function setCookiesFile(name, cookiesFile) {
+  const profile = load(name);
+  profile.cookiesFile = cookiesFile;
+  save(profile);
+  return profile;
+}
+
+function setStartupUrls(name, urls) {
+  const profile = load(name);
+  profile.startupUrls = urls;
   save(profile);
   return profile;
 }
@@ -86,4 +102,4 @@ function listAll() {
     .sort((a, b) => (b.last_used_at || '').localeCompare(a.last_used_at || ''));
 }
 
-module.exports = { create, load, save, setProxy, touchLastUsed, remove, listAll, userDataDir };
+module.exports = { create, load, save, setProxy, setCookiesFile, setStartupUrls, touchLastUsed, remove, listAll, userDataDir };
