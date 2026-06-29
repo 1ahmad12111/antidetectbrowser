@@ -1,0 +1,7 @@
+node_modules/
+profiles/
+data/
+bin/chrome
+bin/chrome-wrapper
+*.json.tmp
+/tmp/adb-fp-*.json

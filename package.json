@@ -1,0 +1,20 @@
+{
+  "name": "antidetect-browser",
+  "version": "0.1.0",
+  "description": "Minimal personal antidetect browser — unlimited profiles, local sync, per-profile proxy",
+  "main": "src/launch.js",
+  "bin": {
+    "adb": "src/launch.js"
+  },
+  "scripts": {
+    "create": "node src/launch.js create",
+    "launch": "node src/launch.js launch",
+    "list": "node src/launch.js list",
+    "delete": "node src/launch.js delete",
+    "set-proxy": "node src/launch.js set-proxy"
+  },
+  "dependencies": {},
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
