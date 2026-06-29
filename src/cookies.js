@@ -25,101 +25,98 @@ function waitForChrome(port, retries = 20) {
   });
 }
 
+// Open a CDP WebSocket to the first available page target
+async function openCDPSession(port) {
+  const pages = await waitForChrome(port);
+  const target = pages.find(p => p.type === 'page') || pages[0];
+  if (!target?.webSocketDebuggerUrl) throw new Error('No debuggable page found in Chrome');
+
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(target.webSocketDebuggerUrl);
+    ws.on('open', () => resolve(ws));
+    ws.on('error', reject);
+  });
+}
+
 // Send a single CDP command and wait for its response
 function sendCDP(ws, method, params = {}) {
   return new Promise((resolve, reject) => {
-    const id = Date.now();
+    const id = Date.now() + Math.random(); // unique per call
     ws.send(JSON.stringify({ id, method, params }));
-    ws.on('message', function handler(msg) {
+    const handler = (msg) => {
       const data = JSON.parse(msg);
       if (data.id === id) {
         ws.off('message', handler);
         data.error ? reject(new Error(data.error.message)) : resolve(data.result);
       }
-    });
+    };
+    ws.on('message', handler);
   });
 }
 
-// Load cookies JSON — supports both Cookie-Editor format and Netscape/EditThisCookie format
+// Load cookies JSON — supports Cookie-Editor / EditThisCookie JSON export format
 function loadCookiesFile(cookiesPath) {
   const raw = fs.readFileSync(cookiesPath, 'utf8');
   const parsed = JSON.parse(raw);
-
-  // Normalize to CDP Network.CookieParam format
   return parsed.map(c => {
-    const cookie = {
-      name: c.name,
-      value: c.value || '',
-      domain: c.domain,
-      path: c.path || '/',
-    };
-    if (c.secure !== undefined) cookie.secure = Boolean(c.secure);
-    if (c.httpOnly !== undefined) cookie.httpOnly = Boolean(c.httpOnly);
-    if (c.sameSite) cookie.sameSite = c.sameSite; // Strict | Lax | None
-    if (c.expirationDate) cookie.expires = Math.floor(c.expirationDate); // Unix timestamp
-    if (c.expires && typeof c.expires === 'number') cookie.expires = Math.floor(c.expires);
+    const cookie = { name: c.name, value: c.value || '', domain: c.domain, path: c.path || '/' };
+    if (c.secure !== undefined)      cookie.secure   = Boolean(c.secure);
+    if (c.httpOnly !== undefined)    cookie.httpOnly = Boolean(c.httpOnly);
+    if (c.sameSite)                  cookie.sameSite = c.sameSite;
+    if (c.expirationDate)            cookie.expires  = Math.floor(c.expirationDate);
+    if (typeof c.expires === 'number') cookie.expires = Math.floor(c.expires);
     return cookie;
   });
 }
 
-// Inject geolocation override into all open pages via CDP
-async function injectGeolocation(port, lat, lon) {
-  const pages = await waitForChrome(port);
-  const target = pages.find(p => p.type === 'page') || pages[0];
-  if (!target || !target.webSocketDebuggerUrl) return;
+// Run all CDP injections in a single session: timezone, geolocation, cookies
+async function injectAll(port, { timezone, lat, lon, cookiesPath }) {
+  const ws = await openCDPSession(port);
+  try {
+    // Fix 1 — Timezone via CDP (replaces the fake --timezone flag)
+    if (timezone) {
+      await sendCDP(ws, 'Emulation.setTimezoneOverride', { timezoneId: timezone });
+      console.log(`  Timezone locked: ${timezone}`);
+    }
 
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket(target.webSocketDebuggerUrl);
-    ws.on('open', async () => {
-      try {
-        await sendCDP(ws, 'Emulation.setGeolocationOverride', {
-          latitude: lat,
-          longitude: lon,
-          accuracy: 10,
-        });
-        ws.close();
-        resolve();
-      } catch (err) {
-        ws.close();
-        reject(err);
-      }
-    });
-    ws.on('error', reject);
-  });
+    // Geolocation
+    if (lat != null && lon != null) {
+      await sendCDP(ws, 'Emulation.setGeolocationOverride', { latitude: lat, longitude: lon, accuracy: 10 });
+      console.log(`  Geolocation locked: ${lat}, ${lon}`);
+    }
+
+    // Cookies
+    if (cookiesPath && fs.existsSync(cookiesPath)) {
+      const cookies = loadCookiesFile(cookiesPath);
+      await sendCDP(ws, 'Network.enable');
+      await sendCDP(ws, 'Network.setCookies', { cookies });
+      console.log(`  Injected ${cookies.length} cookies`);
+    } else if (cookiesPath) {
+      console.warn(`  [warn] Cookies file not found: ${cookiesPath}`);
+    }
+  } finally {
+    ws.close();
+  }
 }
 
-// Inject cookies into a running Chrome instance via CDP
-async function injectCookies(port, cookiesPath) {
-  if (!fs.existsSync(cookiesPath)) {
-    throw new Error(`Cookies file not found: ${cookiesPath}`);
+// Inject cookies from a raw JSON string (clipboard paste — QoL 6)
+async function injectCookiesFromText(port, jsonText) {
+  const ws = await openCDPSession(port);
+  try {
+    const cookies = JSON.parse(jsonText).map(c => ({
+      name: c.name, value: c.value || '', domain: c.domain, path: c.path || '/',
+      ...(c.secure !== undefined    ? { secure: Boolean(c.secure) }   : {}),
+      ...(c.httpOnly !== undefined  ? { httpOnly: Boolean(c.httpOnly) } : {}),
+      ...(c.sameSite                ? { sameSite: c.sameSite }         : {}),
+      ...(c.expirationDate          ? { expires: Math.floor(c.expirationDate) } : {}),
+    }));
+    await sendCDP(ws, 'Network.enable');
+    await sendCDP(ws, 'Network.setCookies', { cookies });
+    console.log(`  Injected ${cookies.length} cookies from clipboard`);
+    return cookies.length;
+  } finally {
+    ws.close();
   }
-
-  const cookies = loadCookiesFile(cookiesPath);
-  console.log(`  Injecting ${cookies.length} cookies from ${cookiesPath}...`);
-
-  // Get the WebSocket debugger URL from Chrome
-  const pages = await waitForChrome(port);
-  const target = pages.find(p => p.type === 'page') || pages[0];
-  if (!target || !target.webSocketDebuggerUrl) {
-    throw new Error('No debuggable page found in Chrome');
-  }
-
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket(target.webSocketDebuggerUrl);
-    ws.on('open', async () => {
-      try {
-        await sendCDP(ws, 'Network.enable');
-        await sendCDP(ws, 'Network.setCookies', { cookies });
-        console.log(`  Cookies injected successfully.`);
-        ws.close();
-        resolve();
-      } catch (err) {
-        ws.close();
-        reject(err);
-      }
-    });
-    ws.on('error', reject);
-  });
 }
 
-module.exports = { injectCookies, injectGeolocation };
+module.exports = { injectAll, injectCookiesFromText, waitForChrome };
