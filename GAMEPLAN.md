@@ -74,6 +74,148 @@ cd ~/browser && node launch.js launch "account-1"
 
 ---
 
+## CORE FEATURES — DETAILED DESIGN
+
+### Feature 1: Unlimited Fingerprints / Unlimited Profile Creation
+
+**How it works:**
+- Every profile is just a folder + a JSON file. No database, no license check, no profile cap.
+- `profiles/` directory holds one JSON per profile. Create 1 or 1,000 — no limit.
+- Each profile gets a **unique fingerprint seed** (UUID-derived hex string). The C++ patches in
+  the patched Chromium binary read this seed and use it to deterministically generate all noise
+  values (Canvas, WebGL, AudioContext, etc.). Same seed = same fingerprint every time you launch.
+- Fingerprint values are NOT stored explicitly — only the seed is. The binary recomputes
+  the fingerprint from the seed on every launch, so it's always consistent.
+
+**Profile JSON structure:**
+```json
+{
+  "id": "a3f9c2b1",
+  "name": "facebook-account-1",
+  "seed": "a3f9c2b1ee8d4c72",
+  "preset": "windows-11-rtx3070-1080p",
+  "proxy": null,
+  "timezone": "America/New_York",
+  "language": "en-US",
+  "created_at": "2026-06-29T10:00:00Z",
+  "last_used_at": "2026-06-29T10:00:00Z"
+}
+```
+
+**Creating a new profile:**
+```bash
+node launch.js create "facebook-account-1" --preset=windows-11-rtx3070 --timezone=America/New_York
+# Generates a unique seed, writes profiles/facebook-account-1.json
+# Creates data/facebook-account-1/ (isolated user-data-dir)
+# No profile limit. Run this command as many times as you want.
+```
+
+**Fingerprint uniqueness guarantee:**
+Each profile gets a UUID-based seed → different Canvas hash, different WebGL renderer noise,
+different AudioContext output, different font metrics — all derived from that one seed value.
+No two profiles share a fingerprint.
+
+---
+
+### Feature 2: Local Sync on Profile Close
+
+**How it works:**
+Chromium already saves everything to its `--user-data-dir`. When the browser closes, cookies,
+sessions, history, passwords, and local storage are already written to disk in
+`data/<profile-name>/`. Nothing extra needed for this — it's Chromium's default behavior.
+
+What `launch.js` adds on top:
+- **Watches for the browser process to exit** (`child.on('exit', ...)`)
+- **On exit**: reads the Chromium `Local State` and `Default/Preferences` files, extracts the
+  current window size/position and last-used tabs, and writes a `session.json` snapshot to the
+  profile folder
+- **On next launch**: restores that snapshot (passes `--window-size`, `--window-position`,
+  optionally reopens last URL via `--new-window`)
+- Updates `last_used_at` in the profile JSON
+
+**What gets saved automatically (by Chromium, zero extra work):**
+- ✅ All cookies (survives browser close and reopen)
+- ✅ Login sessions / `localStorage` / `sessionStorage` (session storage cleared on close, per spec)
+- ✅ Browser history
+- ✅ Saved passwords (if Chrome password manager used)
+- ✅ Bookmarks
+- ✅ Extensions and their data
+- ✅ Cache (speeds up repeat visits)
+
+**What `launch.js` saves additionally:**
+- ✅ Last window geometry (size + position)
+- ✅ Last-used timestamp (for `launch.js list` display)
+
+**Profile data directory layout:**
+```
+data/
+  facebook-account-1/
+    Default/
+      Cookies          ← all cookies (auto-saved by Chromium)
+      History          ← browsing history
+      Local Storage/   ← web app local storage
+      Extension Data/  ← extension state
+    Local State        ← Chromium state file
+    session.json       ← our snapshot (window size, last_used_at)
+```
+
+---
+
+### Feature 3: Per-Profile Proxy (Your Own Proxies, Different Per Profile)
+
+**How it works:**
+Chromium has native `--proxy-server` and `--proxy-bypass-list` flags. We pass a different
+value per profile at launch time. The proxy is stored in the profile JSON so it's remembered.
+
+**Supported proxy types (all built into Chromium — zero extra code):**
+| Type | Format in profile JSON |
+|---|---|
+| SOCKS5 | `"socks5://host:port"` |
+| SOCKS5 with auth | `"socks5://user:pass@host:port"` |
+| HTTP proxy | `"http://host:port"` |
+| HTTP with auth | `"http://user:pass@host:port"` |
+| HTTPS proxy | `"https://host:port"` |
+| No proxy | `null` (direct connection) |
+
+**Setting a proxy when creating a profile:**
+```bash
+# SOCKS5 (most common — Shadowsocks, V2Ray, SSH tunnel all expose SOCKS5)
+node launch.js create "ig-account-2" --proxy="socks5://127.0.0.1:1080"
+
+# Different proxy for a different profile
+node launch.js create "fb-account-3" --proxy="socks5://192.168.1.10:1090"
+
+# No proxy (direct)
+node launch.js create "personal" --proxy=none
+```
+
+**Changing proxy on an existing profile:**
+```bash
+node launch.js set-proxy "ig-account-2" --proxy="socks5://new-proxy-ip:1080"
+# Updates profiles/ig-account-2.json and takes effect on next launch
+```
+
+**What Chromium does with the proxy flag:**
+- ALL traffic (HTTP, HTTPS, WebSocket) routes through the proxy
+- WebRTC is also forced through the proxy (no IP leak) — we pass `--force-webrtc-ip-handling-policy=disable_non_proxied_udp`
+- DNS queries go through the proxy too (no DNS leak) — automatic with SOCKS5 in Chromium
+
+**Verifying the proxy works:**
+After launching a profile, visit https://browserleaks.com/ip — should show your proxy IP,
+not your real IP. WebRTC section should show no local IP leak.
+
+**Per-profile proxy summary:**
+```
+profile: facebook-account-1  → socks5://proxy-usa:1080     (US IP)
+profile: ig-account-2        → socks5://proxy-uk:1080      (UK IP)
+profile: research-1          → null                         (direct, real IP)
+profile: fb-account-3        → socks5://192.168.1.10:1090  (your own VPN)
+```
+Every profile completely independent. Change any profile's proxy at any time without
+affecting other profiles.
+
+---
+
 ## 1. What is an Antidetect Browser?
 
 An antidetect browser is a modified browser that replaces your real device fingerprint with a
