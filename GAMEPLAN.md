@@ -328,12 +328,70 @@ UI and advanced features come after the engine works.
 
 ---
 
-## 10. Resources & References
+## 10. Advanced Technical Gaps We Can Exploit
+
+Research revealed that every commercial antidetect browser has the same blind spots.
+These are our competitive advantages if we address them:
+
+### 10.1 TLS / JA4+ Fingerprinting (CRITICAL GAP — no one fixes this)
+Every commercial tool uses the OS TLS stack, which means Cloudflare/DataDome/Kasada can
+fingerprint the TLS ClientHello regardless of what the browser JS claims. Fix:
+- Run a local SOCKS5-to-HTTPS proxy (e.g., using `utls` Go library or `tlsfuzzer`) that
+  rewrites the TLS ClientHello cipher suite order + extensions to match real Chrome's JA4+
+- Each profile gets a proxy that presents the correct JA4+ for its claimed browser version
+- This single feature would make us technically superior to every existing tool
+
+### 10.2 WebGPU Spoofing (2026 gap)
+WebGL is addressed by all tools. WebGPU (shipping in all major browsers by 2026) exposes GPU
+model and driver at a new granularity. Add WebGPU patches alongside WebGL.
+Files: `third_party/blink/renderer/modules/webgpu/`
+
+### 10.3 Cross-Signal Consistency Validator
+Profiles that have mismatched signals (Canvas GPU ≠ WebGL GPU, timezone ≠ proxy IP, font
+set ≠ claimed OS) are trivially detected. Before launching, validate:
+- GPU claimed in WebGL matches GPU in canvas noise seed
+- Timezone matches proxy IP geolocation (auto-set from proxy)
+- Font allowlist matches claimed OS (Windows/macOS/Linux font sets differ)
+- `hardwareConcurrency` / `deviceMemory` ratio is plausible for claimed device tier
+- `Sec-CH-UA` Client Hints match `userAgent` string exactly
+
+### 10.4 Behavioral Noise Injection (emerging detection layer)
+Cloudflare, DataDome, Akamai now score mouse movement trajectories, keystroke timing,
+and scroll patterns. A Gaussian noise overlay on mouse events injected at the Chromium
+input handling level (`content/browser/renderer_host/input/`) would bypass this.
+
+### 10.5 Real Device Fingerprint Library
+Synthetic fingerprints fail statistical analysis. Use real-device fingerprint sourcing:
+- Crowdsource from opt-in users or mine public browser telemetry
+- Store as a library of (OS, GPU, screen, language, fonts) tuples
+- Each profile draws from the library, not from random generation
+
+---
+
+## 11. Open-Source Projects (Updated List)
+
+| Project | Engine | Key Feature |
+|---|---|---|
+| `CloakHQ/CloakBrowser` | Chromium 148 | 58 C++ patches; passes 30/30 detection tests as of 2026; best reference |
+| `jo-inc/camofox-browser` | Firefox fork | Engine-level patches; drop-in Playwright replacement |
+| `itbrowser-net/undetectable-fingerprint-browser` | Chromium | 170+ device profiles; WebGL/WebGPU/fonts/TLS |
+| `coderkhalide/Anti-Detect-Browser` | Electron+Puppeteer | JS-layer only; good for learning Electron shell design |
+| `niespodd/browser-fingerprinting` | N/A (research) | Documents all detection systems and countermeasures |
+| `puppeteer-extra-plugin-stealth` | Any | JS only; NOT suitable for multi-account; good API reference |
+
+**Start with CloakBrowser as our patch reference** — 58 patches already written for Chromium 148,
+passes current detection tests. We build on top, add our UI + proxy + profile management.
+
+---
+
+## 12. Resources & References
 
 - Chromium source: https://chromium.googlesource.com/chromium/src
 - depot_tools: https://chromium.googlesource.com/chromium/tools/depot_tools
-- Open-source reference: https://github.com/itbrowser-net/undetectable-fingerprint-browser
-- Open-source reference (Electron shell): https://github.com/coderkhalide/Anti-Detect-Browser
+- **Best open-source reference**: https://github.com/CloakHQ/CloakBrowser (58 patches, current)
+- Firefox fork reference: https://github.com/jo-inc/camofox-browser
+- Detection system analysis: https://github.com/niespodd/browser-fingerprinting
+- Open-source Electron shell: https://github.com/coderkhalide/Anti-Detect-Browser
 - Fingerprint testing: https://browserleaks.com / https://pixelscan.net / https://abrahamjuliot.github.io/creepjs
 - Chromium build guide: https://chromium.googlesource.com/chromium/src/+/main/docs/linux/build_instructions.md
 - puppeteer-extra-plugin-stealth (JS reference): https://github.com/berstend/puppeteer-extra/tree/master/packages/puppeteer-extra-plugin-stealth
