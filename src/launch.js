@@ -4,6 +4,7 @@
 const { create, load, setProxy, setCookiesFile, setStartupUrls, remove, listAll } = require('./profiles');
 const { launch } = require('./browser');
 const { listPresets } = require('./presets');
+const { detectProxyGeo } = require('./geo');
 
 const [,, command, ...args] = process.argv;
 
@@ -53,30 +54,48 @@ Examples:
 `);
 }
 
-function cmdCreate(args) {
+async function cmdCreate(args) {
   const name = args[0];
   if (!name) { console.error('Usage: create <name> [options]'); process.exit(1); }
   const flags = parseFlags(args.slice(1));
 
+  const proxy = flags.proxy && flags.proxy !== 'none' ? flags.proxy : null;
   const startupUrls = flags['startup-urls']
     ? flags['startup-urls'].split(',').map(u => u.trim()).filter(Boolean)
     : [];
 
-  const profile = create({
-    name,
-    preset: flags.preset || 'windows-11-rtx3070-1080p',
-    proxy: flags.proxy && flags.proxy !== 'none' ? flags.proxy : null,
-    timezone: flags.timezone || 'America/New_York',
-    language: flags.language || 'en-US',
-    startupUrls,
-    cookiesFile: flags.cookies || null,
-  });
+  // Auto-detect timezone, language, and geolocation from the proxy's exit IP
+  let geo = null;
+  let timezone = flags.timezone || 'America/New_York';
+  let language = flags.language || 'en-US';
+
+  if (proxy) {
+    process.stdout.write(`  Detecting proxy location through ${proxy}... `);
+    try {
+      geo = await detectProxyGeo(proxy);
+      timezone = geo.timezone;
+      language = geo.language;
+      console.log(`${geo.city}, ${geo.country} (${geo.ip})`);
+    } catch (err) {
+      console.log(`failed (${err.message})`);
+      console.log(`  Using manual timezone: ${timezone}, language: ${language}`);
+    }
+  }
+
+  const profile = create({ name, preset: flags.preset || 'windows-11-rtx3070-1080p', proxy, timezone, language, startupUrls, cookiesFile: flags.cookies || null, geo });
 
   console.log(`\nCreated profile "${profile.name}"`);
-  console.log(`  ID           : ${profile.id}`);
-  console.log(`  Seed         : ${profile.seed}`);
   console.log(`  Preset       : ${profile.preset}`);
   console.log(`  Proxy        : ${profile.proxy || 'none'}`);
+  if (geo) {
+    console.log(`  Location     : ${geo.city}, ${geo.country} (${geo.ip})`);
+    console.log(`  Timezone     : ${timezone}  ← auto-matched to proxy`);
+    console.log(`  Language     : ${language}  ← auto-matched to proxy`);
+    console.log(`  Geolocation  : ${geo.lat}, ${geo.lon}  ← injected on launch`);
+  } else {
+    console.log(`  Timezone     : ${timezone}`);
+    console.log(`  Language     : ${language}`);
+  }
   console.log(`  Startup URLs : ${profile.startupUrls.length ? profile.startupUrls.join(', ') : 'none'}`);
   console.log(`  Cookies file : ${profile.cookiesFile || 'none'}\n`);
 }
@@ -148,7 +167,7 @@ function cmdPresets() {
 
 (async () => {
   switch (command) {
-    case 'create':      cmdCreate(args); break;
+    case 'create':      await cmdCreate(args); break;
     case 'launch':      await cmdLaunch(args); break;
     case 'list':        cmdList(); break;
     case 'set-proxy':   cmdSetProxy(args); break;

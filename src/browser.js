@@ -6,7 +6,7 @@ const os = require('os');
 const path = require('path');
 const { getPreset } = require('./presets');
 const { userDataDir, touchLastUsed } = require('./profiles');
-const { injectCookies } = require('./cookies');
+const { injectCookies, injectGeolocation } = require('./cookies');
 
 const ROOT = path.resolve(__dirname, '..');
 const IS_WINDOWS = process.platform === 'win32';
@@ -172,15 +172,19 @@ async function launch(profile, overrideCookiesFile = null) {
     process.exit(1);
   });
 
-  // Inject cookies via CDP after Chrome starts
-  if (cookiesFile) {
+  // Inject cookies + geolocation via CDP after Chrome starts
+  if (cookiesFile || profile.geo) {
     setTimeout(async () => {
       try {
-        await injectCookies(debugPort, cookiesFile);
+        if (cookiesFile) await injectCookies(debugPort, cookiesFile);
+        if (profile.geo?.lat && profile.geo?.lon) {
+          await injectGeolocation(debugPort, profile.geo.lat, profile.geo.lon);
+          console.log(`  Geolocation locked to ${profile.geo.city}, ${profile.geo.country} (${profile.geo.lat}, ${profile.geo.lon})`);
+        }
       } catch (err) {
-        console.error(`[cookies] Failed to inject: ${err.message}`);
+        console.error(`[cdp] ${err.message}`);
       }
-    }, 3000); // wait 3s for Chrome to fully start
+    }, 3000);
   }
 
   child.unref();

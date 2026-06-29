@@ -62,6 +62,32 @@ function loadCookiesFile(cookiesPath) {
   });
 }
 
+// Inject geolocation override into all open pages via CDP
+async function injectGeolocation(port, lat, lon) {
+  const pages = await waitForChrome(port);
+  const target = pages.find(p => p.type === 'page') || pages[0];
+  if (!target || !target.webSocketDebuggerUrl) return;
+
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(target.webSocketDebuggerUrl);
+    ws.on('open', async () => {
+      try {
+        await sendCDP(ws, 'Emulation.setGeolocationOverride', {
+          latitude: lat,
+          longitude: lon,
+          accuracy: 10,
+        });
+        ws.close();
+        resolve();
+      } catch (err) {
+        ws.close();
+        reject(err);
+      }
+    });
+    ws.on('error', reject);
+  });
+}
+
 // Inject cookies into a running Chrome instance via CDP
 async function injectCookies(port, cookiesPath) {
   if (!fs.existsSync(cookiesPath)) {
@@ -96,4 +122,4 @@ async function injectCookies(port, cookiesPath) {
   });
 }
 
-module.exports = { injectCookies };
+module.exports = { injectCookies, injectGeolocation };

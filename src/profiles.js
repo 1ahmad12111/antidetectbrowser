@@ -36,7 +36,7 @@ function save(profile) {
   fs.writeFileSync(profilePath(profile.name), JSON.stringify(profile, null, 2));
 }
 
-function create({ name, preset, proxy = null, timezone = 'America/New_York', language = 'en-US', startupUrls = [], cookiesFile = null }) {
+function create({ name, preset, proxy = null, timezone = 'America/New_York', language = 'en-US', startupUrls = [], cookiesFile = null, geo = null }) {
   ensureDirs();
   if (exists(name)) throw new Error(`Profile "${name}" already exists.`);
 
@@ -50,6 +50,7 @@ function create({ name, preset, proxy = null, timezone = 'America/New_York', lan
     language,
     startupUrls,
     cookiesFile,
+    geo,          // { ip, city, country, lat, lon, timezone, language } — auto-detected from proxy
     created_at: new Date().toISOString(),
     last_used_at: null,
   };
