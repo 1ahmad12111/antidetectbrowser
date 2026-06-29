@@ -128,6 +128,23 @@ function randomDebugPort() {
 let processRegistry = null;
 function setProcessRegistry(reg) { processRegistry = reg; }
 
+// Patch Default/Preferences before launch so Chrome doesn't show
+// "Restore pages?" on next open. Chrome marks exit_type="Crashed" on startup
+// and only resets it to "Normal" on clean exit. We pre-set it to "Normal"
+// so the crash-restore bubble never appears, while --restore-last-session
+// still restores tabs normally.
+function patchChromePreferences(dataDir) {
+  const prefsPath = path.join(dataDir, 'Default', 'Preferences');
+  if (!fs.existsSync(prefsPath)) return; // first run — no prefs yet
+  try {
+    const prefs = JSON.parse(fs.readFileSync(prefsPath, 'utf8'));
+    if (!prefs.profile) prefs.profile = {};
+    prefs.profile.exit_type      = 'Normal';
+    prefs.profile.exited_cleanly = true;
+    fs.writeFileSync(prefsPath, JSON.stringify(prefs));
+  } catch (_) {}
+}
+
 async function launch(profile, overrideCookiesFile = null) {
   const preset   = getPreset(profile.preset);
   const dataDir  = userDataDir(profile.name);
@@ -136,6 +153,9 @@ async function launch(profile, overrideCookiesFile = null) {
   const debugPort = randomDebugPort();
   const flags    = buildFlags(profile, preset, fpConfigPath, dataDir, debugPort);
   const cookiesFile = overrideCookiesFile || profile.cookiesFile || null;
+
+  // Patch prefs BEFORE launch so Chrome skips the crash-restore dialog
+  patchChromePreferences(dataDir);
 
   console.log(`\nLaunching profile: ${profile.name}`);
   console.log(`  Preset    : ${profile.preset}`);

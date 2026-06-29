@@ -91,16 +91,51 @@ function loadCookiesFile(cookiesPath) {
   });
 }
 
+// Build a script that overrides all JS timezone APIs so pages always report
+// the spoofed timezone regardless of when our CDP override arrives.
+function buildTimezoneScript(timezone) {
+  return `(function() {
+  const _tz = ${JSON.stringify(timezone)};
+  // Override Intl.DateTimeFormat to always inject our timezone
+  const _OrigDTF = Intl.DateTimeFormat;
+  function PatchedDTF(locales, options) {
+    options = Object.assign({}, options || {});
+    if (!options.timeZone) options.timeZone = _tz;
+    return new _OrigDTF(locales, options);
+  }
+  PatchedDTF.prototype = _OrigDTF.prototype;
+  PatchedDTF.supportedLocalesOf = _OrigDTF.supportedLocalesOf.bind(_OrigDTF);
+  Object.defineProperty(Intl, 'DateTimeFormat', { value: PatchedDTF, writable: true, configurable: true });
+
+  // Patch Date.prototype methods that leak local timezone offset
+  const _getTimezoneOffset = Date.prototype.getTimezoneOffset;
+  const _tzOffset = (() => {
+    try { return -new _OrigDTF('en', { timeZone: _tz, timeZoneName: 'short' })
+      .formatToParts(new Date()).reduce((acc, p) => {
+        if (p.type === 'timeZoneName') {
+          const m = p.value.match(/GMT([+-])(\\d{1,2})(?::(\\d{2}))?/);
+          if (m) return (m[1] === '+' ? -1 : 1) * (parseInt(m[2]) * 60 + parseInt(m[3] || 0));
+        }
+        return acc;
+      }, 0); } catch(e) { return 0; }
+  })();
+  Date.prototype.getTimezoneOffset = function() { return _tzOffset; };
+})();`;
+}
+
 // Apply timezone + geolocation overrides to every open page target
 async function injectEmulationToAllTabs(port, { timezone, lat, lon }) {
   const pages = await waitForChrome(port);
   const pageTargets = pages.filter(p => p.type === 'page' && p.webSocketDebuggerUrl);
+  const tzScript = timezone ? buildTimezoneScript(timezone) : null;
   await Promise.all(pageTargets.map(async (target) => {
     let ws;
     try {
       ws = await connectWS(target.webSocketDebuggerUrl);
       if (timezone) {
         await sendCDP(ws, 'Emulation.setTimezoneOverride', { timezoneId: timezone });
+        // Inject script so ALL future navigations in this tab also get the override
+        await sendCDP(ws, 'Page.addScriptToEvaluateOnNewDocument', { source: tzScript });
       }
       if (lat != null && lon != null) {
         await sendCDP(ws, 'Emulation.setGeolocationOverride', { latitude: lat, longitude: lon, accuracy: 10 });
